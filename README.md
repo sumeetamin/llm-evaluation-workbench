@@ -51,9 +51,20 @@ python -m evalbench compare \
   --report reports/comparison.html
 ```
 
+## Real-world ML benchmark
+
+The repository also includes a reproducible intent-classification benchmark on BANKING77, a public dataset of online-banking customer queries with 77 intent labels. It trains a TF-IDF + linear SVM baseline on the official training split and reports accuracy, macro-F1, weighted-F1, top-3 accuracy, and per-intent metrics on the untouched official test split. It downloads the dataset on first run, keeps raw data out of Git, and uses no model API key. See [`benchmarks/banking77/README.md`](benchmarks/banking77/README.md) for source, attribution, exact configuration, and limits.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[benchmark]"
+.\.venv\Scripts\python.exe benchmarks/banking77/run.py
+```
+
 ## Repository map
 
 - `evalbench/` — dataset validation, provider client, graders, reports and CLI.
+- `benchmarks/banking77/` — reproducible local classifier run on a real, licensed support-intent dataset.
 - `data/support_qa.jsonl` — 16 synthetic support questions with contexts and expected behaviors.
 - `fixtures/` — hand-authored illustrative outputs for offline use. They are not model-generated results.
 - `docs/` — design, data contract, evaluation methodology and limitations.
@@ -66,7 +77,8 @@ This first version intentionally avoids an LLM-as-judge score. Add one only afte
 
 ## Limits and responsible use
 
-- The 16-row dataset is synthetic and is not a benchmark for general model quality.
+- The included support-answer dataset and saved-output fixtures are synthetic and do not establish general model quality.
+- BANKING77 measures closed-set intent classification on one English banking dataset; it does not evaluate answer correctness, retrieval grounding, safety, or production bank traffic.
 - Phrase, refusal and citation graders can miss paraphrases or mark valid answers incorrectly; inspect the failing cases.
 - Citation presence does not prove that a cited passage supports every claim.
 - Latency and token counts are descriptive; no quality or cost claim is made about a real model from the included fixtures.

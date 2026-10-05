@@ -12,6 +12,9 @@ license = {file = "LICENSE"}
 authors = [{name = "Sumeet Amin"}]
 dependencies = []
 
+[project.optional-dependencies]
+benchmark = ["scikit-learn>=1.4,<2"]
+
 [project.scripts]
 evalbench = "evalbench.cli:main"
 

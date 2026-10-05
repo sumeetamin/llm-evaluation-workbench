@@ -3,6 +3,7 @@
 __pycache__/
 *.py[cod]
 reports/
+benchmarks/banking77/data/
 .DS_Store
 Thumbs.db
 
