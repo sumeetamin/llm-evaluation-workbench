@@ -51,6 +51,14 @@ python -m evalbench compare \
   --report reports/comparison.html
 ```
 
+Inspect dataset integrity, version and split counts without printing case text:
+
+```bash
+python -m evalbench dataset inspect --dataset data/support_qa.jsonl
+```
+
+For a dataset whose every case has a `split` field (`train`, `validation`, or `test`), select a split explicitly with `--split test` on `evaluate`, `run`, or `compare`. Reports include a privacy-safe run manifest with dataset/output SHA-256 fingerprints, run ID, timestamp, package/runtime versions and selected split.
+
 ## Real-world ML benchmark
 
 The repository also includes a reproducible intent-classification benchmark on BANKING77, a public dataset of online-banking customer queries with 77 intent labels. It trains a TF-IDF + linear SVM baseline on the official training split and reports accuracy, macro-F1, weighted-F1, top-3 accuracy, and per-intent metrics on the untouched official test split. It downloads the dataset on first run, keeps raw data out of Git, and uses no model API key. See [`benchmarks/banking77/README.md`](benchmarks/banking77/README.md) for source, attribution, exact configuration, and limits.
@@ -88,7 +96,7 @@ This first version intentionally avoids an LLM-as-judge score. Add one only afte
 ## Roadmap
 
 1. Add a human-review annotation loop and reviewer agreement report.
-2. Add split-aware eval-set management and run metadata/version tracking.
+2. Split-aware dataset inspection/selection and run metadata/version tracking — implemented in v0.2.0.
 3. Add a provider interface for more response schemas and trace ingestion.
 4. Add semantic groundedness grading calibrated against human labels.
 

@@ -8,8 +8,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .dataset import DataContractError, load_dataset, load_outputs
+from .dataset import DataContractError, inspect_dataset, load_dataset, load_outputs
 from .graders import grade_dataset
+from .metadata import build_run_metadata
 from .providers import ProviderError, call_responses_endpoint
 from .report import write_reports
 
@@ -34,8 +35,8 @@ def _comparison(baseline: dict[str, Any], candidate: dict[str, Any]) -> dict[str
     }
 
 
-def _score(dataset_path: str, output_path: str) -> dict[str, Any]:
-    return grade_dataset(load_dataset(dataset_path), load_outputs(output_path))
+def _score(dataset_path: str, output_path: str, split: str | None = None) -> dict[str, Any]:
+    return grade_dataset(load_dataset(dataset_path, split=split), load_outputs(output_path))
 
 
 def cmd_demo(args: argparse.Namespace) -> int:
@@ -45,7 +46,9 @@ def cmd_demo(args: argparse.Namespace) -> int:
     baseline = _score(dataset, baseline_path)
     candidate = _score(dataset, candidate_path)
     comparison = _comparison(baseline, candidate)
-    output = write_reports("Offline demo evaluation", candidate, args.report, comparison)
+    cases = load_dataset(dataset)
+    metadata = build_run_metadata(dataset, cases, command="demo", outputs=[baseline_path, candidate_path])
+    output = write_reports("Offline demo evaluation", candidate, args.report, comparison, metadata)
     print(f"Synthetic baseline: {baseline['summary']['passed_cases']}/{baseline['summary']['total_cases']} pass")
     print(f"Synthetic candidate: {candidate['summary']['passed_cases']}/{candidate['summary']['total_cases']} pass")
     print(f"Case-level regressions: {len(comparison['regressions'])}; improvements: {len(comparison['improvements'])}")
@@ -55,8 +58,10 @@ def cmd_demo(args: argparse.Namespace) -> int:
 
 
 def cmd_evaluate(args: argparse.Namespace) -> int:
-    evaluation = _score(args.dataset, args.outputs)
-    output = write_reports(args.title, evaluation, args.report)
+    cases = load_dataset(args.dataset, split=args.split)
+    evaluation = grade_dataset(cases, load_outputs(args.outputs))
+    metadata = build_run_metadata(args.dataset, cases, split=args.split, command="evaluate", outputs=[args.outputs])
+    output = write_reports(args.title, evaluation, args.report, run_metadata=metadata)
     summary = evaluation["summary"]
     print(f"Pass rate: {summary['passed_cases']}/{summary['total_cases']} ({summary['pass_rate']:.1%})")
     print(f"HTML report: {output}")
@@ -64,7 +69,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    cases = load_dataset(args.dataset)
+    cases = load_dataset(args.dataset, split=args.split)
     outputs = []
     for index, case in enumerate(cases, 1):
         print(f"[{index}/{len(cases)}] {case['case_id']}", flush=True)
@@ -73,7 +78,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in outputs), encoding="utf-8")
     evaluation = grade_dataset(cases, {row["case_id"]: row for row in outputs})
-    report_path = write_reports(f"Evaluation run · {args.model}", evaluation, args.report)
+    metadata = build_run_metadata(
+        args.dataset, cases, split=args.split, command="run", outputs=[output_path],
+        model=args.model, endpoint=args.endpoint,
+    )
+    report_path = write_reports(f"Evaluation run · {args.model}", evaluation, args.report, run_metadata=metadata)
     print(f"Pass rate: {evaluation['summary']['passed_cases']}/{evaluation['summary']['total_cases']} ({evaluation['summary']['pass_rate']:.1%})")
     print(f"Model outputs: {output_path}")
     print(f"HTML report: {report_path}")
@@ -81,15 +90,21 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_compare(args: argparse.Namespace) -> int:
-    cases = load_dataset(args.dataset)
+    cases = load_dataset(args.dataset, split=args.split)
     baseline = grade_dataset(cases, load_outputs(args.baseline))
     candidate = grade_dataset(cases, load_outputs(args.candidate))
     comparison = _comparison(baseline, candidate)
-    output = write_reports(args.title, candidate, args.report, comparison)
+    metadata = build_run_metadata(args.dataset, cases, split=args.split, command="compare", outputs=[args.baseline, args.candidate])
+    output = write_reports(args.title, candidate, args.report, comparison, metadata)
     print(f"Pass rate delta: {comparison['delta_pp']:+.1f} percentage points")
     print(f"Regressions: {', '.join(comparison['regressions']) or 'none'}")
     print(f"Improvements: {', '.join(comparison['improvements']) or 'none'}")
     print(f"HTML report: {output}")
+    return 0
+
+
+def cmd_dataset_inspect(args: argparse.Namespace) -> int:
+    print(json.dumps(inspect_dataset(args.dataset), indent=2, ensure_ascii=False))
     return 0
 
 
@@ -106,6 +121,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--outputs", required=True)
     evaluate.add_argument("--report", required=True)
     evaluate.add_argument("--title", default="LLM evaluation report")
+    evaluate.add_argument("--split", choices=("train", "validation", "test"), help="score only cases assigned to this split")
     evaluate.set_defaults(func=cmd_evaluate)
 
     run = sub.add_parser("run", help="call a Responses-compatible endpoint and evaluate its answers")
@@ -116,6 +132,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--model", required=True)
     run.add_argument("--api-key-env", default="OPENAI_API_KEY")
     run.add_argument("--timeout", type=int, default=60)
+    run.add_argument("--split", choices=("train", "validation", "test"), help="send only cases assigned to this split")
     run.set_defaults(func=cmd_run)
 
     compare = sub.add_parser("compare", help="compare two model-output runs on the same dataset")
@@ -124,7 +141,14 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--candidate", required=True)
     compare.add_argument("--report", required=True)
     compare.add_argument("--title", default="Model run comparison")
+    compare.add_argument("--split", choices=("train", "validation", "test"), help="compare only cases assigned to this split")
     compare.set_defaults(func=cmd_compare)
+
+    dataset = sub.add_parser("dataset", help="inspect dataset versions and split counts")
+    dataset_sub = dataset.add_subparsers(dest="dataset_command", required=True)
+    inspect = dataset_sub.add_parser("inspect", help="validate a JSONL dataset and print its fingerprint and split counts")
+    inspect.add_argument("--dataset", required=True)
+    inspect.set_defaults(func=cmd_dataset_inspect)
     return parser
 
 
