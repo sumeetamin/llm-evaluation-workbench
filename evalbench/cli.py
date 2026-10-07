@@ -12,7 +12,8 @@ from .dataset import DataContractError, inspect_dataset, load_dataset, load_outp
 from .graders import grade_dataset
 from .metadata import build_run_metadata
 from .providers import ProviderError, call_responses_endpoint
-from .report import write_reports
+from .report import write_agreement_reports, write_reports
+from .review import build_agreement_report, export_review_packet
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -108,6 +109,32 @@ def cmd_dataset_inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_review_export(args: argparse.Namespace) -> int:
+    rows = export_review_packet(args.dataset, args.outputs, args.reviewer_id, split=args.split)
+    destination = Path(args.out)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8")
+    print(f"Review packet: {len(rows)} cases for reviewer {args.reviewer_id}")
+    print(f"Packet file: {destination}")
+    print(f"Review set ID: {rows[0]['review_set_id']}")
+    print("The packet contains questions, context and model answers. Share only with authorized reviewers; keep it out of public Git.")
+    print("Fill each labels value with pass, fail or unsure. Use the same case_id and reviewer_id when combining completed packets.")
+    return 0
+
+
+def cmd_review_agreement(args: argparse.Namespace) -> int:
+    report = build_agreement_report(args.annotations)
+    output = write_agreement_reports(report, args.report)
+    print(f"Reviewers: {len(report['reviewers'])}; labeled cases: {report['cases_with_labels']}")
+    for dimension, detail in report["dimensions"].items():
+        value = detail["mean_pairwise_kappa"]
+        rendered = "not defined" if value is None else f"{value:.3f}"
+        print(f"{dimension}: mean pairwise Cohen's kappa {rendered}")
+    print(f"HTML report: {output}")
+    print(f"Aggregate JSON: {output.with_suffix('.json')}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="evalbench", description="Run transparent, application-specific LLM evaluations.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -149,6 +176,21 @@ def build_parser() -> argparse.ArgumentParser:
     inspect = dataset_sub.add_parser("inspect", help="validate a JSONL dataset and print its fingerprint and split counts")
     inspect.add_argument("--dataset", required=True)
     inspect.set_defaults(func=cmd_dataset_inspect)
+
+    review = sub.add_parser("review", help="export human-review packets and measure reviewer agreement")
+    review_sub = review.add_subparsers(dest="review_command", required=True)
+    review_export = review_sub.add_parser("export", help="create a blinded local review packet from saved model outputs")
+    review_export.add_argument("--dataset", required=True)
+    review_export.add_argument("--outputs", required=True)
+    review_export.add_argument("--reviewer-id", required=True, help="use an alias rather than a reviewer’s real name")
+    review_export.add_argument("--split", choices=("train", "validation", "test"), help="export only a fully assigned dataset split")
+    review_export.add_argument("--out", required=True)
+    review_export.set_defaults(func=cmd_review_export)
+
+    review_agreement = review_sub.add_parser("agreement", help="report pairwise reviewer agreement and case disagreements")
+    review_agreement.add_argument("--annotations", required=True, help="combined completed review-packet JSONL")
+    review_agreement.add_argument("--report", required=True)
+    review_agreement.set_defaults(func=cmd_review_agreement)
     return parser
 
 
