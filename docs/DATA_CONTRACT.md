@@ -29,6 +29,16 @@ Each context item requires a `source_id` and `text`. Source IDs must be unique p
 
 Only `case_id` and `answer` are required. Extra IDs not in the dataset are surfaced in the summary; missing IDs fail their corresponding cases.
 
+## Human-review annotation
+
+`evalbench review export` creates one row per case and reviewer. Fill one of `pass`, `fail`, or `unsure` for every rubric dimension; `null` or an empty string means that dimension was not reviewed yet.
+
+```json
+{"case_id":"refund-window","reviewer_id":"reviewer-a","review_set_id":"<64-character SHA-256 fingerprint>","question":"Can I get a refund?","context":[{"source_id":"refund-policy","text":"Refund requests may be made within 30 days."}],"answer":"You may request a refund within 30 days.","labels":{"correctness":"pass","groundedness":"pass","safety":"pass"},"notes":""}
+```
+
+The three required dimensions are `correctness`, `groundedness`, and `safety`. `review_set_id` ties packets to the same dataset fingerprint, saved-output fingerprint, and selected split. Combine completed reviewer rows as JSONL before using `evalbench review agreement`; the command rejects mixed review-set IDs. Each `(case_id, reviewer_id)` pair must be unique. Use aliases for reviewer IDs. Free-text notes are accepted in packet files but are never copied into agreement reports. See [`HUMAN_REVIEW.md`](HUMAN_REVIEW.md) for the rubric, workflow, and privacy guidance.
+
 ## Data handling
 
 Output files contain generated answers and operational metadata. The live runner intentionally avoids copying prompt text into output files. Use synthetic or approved data, keep outputs outside version control by default, and review retention requirements before calling a hosted endpoint.
