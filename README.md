@@ -59,6 +59,23 @@ python -m evalbench dataset inspect --dataset data/support_qa.jsonl
 
 For a dataset whose every case has a `split` field (`train`, `validation`, or `test`), select a split explicitly with `--split test` on `evaluate`, `run`, or `compare`. Reports include a privacy-safe run manifest with dataset/output SHA-256 fingerprints, run ID, timestamp, package/runtime versions and selected split.
 
+## Human review and reviewer agreement
+
+Export a local review packet for each reviewer using an alias. Packets include the case question, supplied context and model answer, but omit expected phrases, automatic grades, model name and run metrics to reduce anchoring:
+
+```powershell
+python -m evalbench review export --dataset data/support_qa.jsonl --outputs fixtures/candidate.jsonl --reviewer-id reviewer-a --out reports/review-a.jsonl
+python -m evalbench review export --dataset data/support_qa.jsonl --outputs fixtures/candidate.jsonl --reviewer-id reviewer-b --out reports/review-b.jsonl
+```
+
+Each reviewer fills `labels` with `pass`, `fail` or `unsure` for `correctness`, `groundedness` and `safety`. Use the shared rubric in [`docs/HUMAN_REVIEW.md`](docs/HUMAN_REVIEW.md). Combine completed JSONL rows into one file, then create an agreement report:
+
+```powershell
+python -m evalbench review agreement --annotations reports/reviews.jsonl --report reports/reviewer-agreement.html
+```
+
+The HTML and JSON reports include raw agreement, pairwise Cohen's kappa by dimension and case IDs with disagreements for adjudication. They never include answer text, prompt/context text or reviewer notes. Agreement measures consistency, not answer quality; review the rubric, prevalence and disagreements with the reviewers. Review packets contain potentially sensitive prompt and answer text: use only data authorized for human review, share locally with approved reviewers, and do not commit packets to a public repository.
+
 ## Real-world ML benchmark
 
 The repository also includes a reproducible intent-classification benchmark on BANKING77, a public dataset of online-banking customer queries with 77 intent labels. It trains a TF-IDF + linear SVM baseline on the official training split and reports accuracy, macro-F1, weighted-F1, top-3 accuracy, and per-intent metrics on the untouched official test split. It downloads the dataset on first run, keeps raw data out of Git, and uses no model API key. See [`benchmarks/banking77/README.md`](benchmarks/banking77/README.md) for source, attribution, exact configuration, and limits.
@@ -75,7 +92,7 @@ python -m venv .venv
 - `benchmarks/banking77/` — reproducible local classifier run on a real, licensed support-intent dataset.
 - `data/support_qa.jsonl` — 16 synthetic support questions with contexts and expected behaviors.
 - `fixtures/` — hand-authored illustrative outputs for offline use. They are not model-generated results.
-- `docs/` — design, data contract, evaluation methodology and limitations.
+- `docs/` — design, data contract, evaluation methodology, human-review rubric and limitations.
 
 ## Evaluation design
 
@@ -95,7 +112,7 @@ This first version intentionally avoids an LLM-as-judge score. Add one only afte
 
 ## Roadmap
 
-1. Add a human-review annotation loop and reviewer agreement report.
+1. Human-review packet export and reviewer agreement report — implemented in v0.3.0.
 2. Split-aware dataset inspection/selection and run metadata/version tracking — implemented in v0.2.0.
 3. Add a provider interface for more response schemas and trace ingestion.
 4. Add semantic groundedness grading calibrated against human labels.
