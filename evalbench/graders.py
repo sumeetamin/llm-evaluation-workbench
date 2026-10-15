@@ -53,7 +53,7 @@ def grade_case(case: dict[str, Any], output: dict[str, Any] | None) -> dict[str,
         "passed": passed,
         "answer": answer,
         "checks": checks,
-        "metadata": {key: metadata.get(key) for key in ("model", "latency_ms", "input_tokens", "output_tokens") if metadata.get(key) is not None},
+        "metadata": {key: metadata.get(key) for key in ("provider", "model", "latency_ms", "input_tokens", "output_tokens") if metadata.get(key) is not None},
     }
 
 
