@@ -49,6 +49,7 @@ def export_review_packet(
     return [
         {
             "case_id": case["case_id"],
+            **({"split": case["split"]} if "split" in case else {}),
             "reviewer_id": reviewer_id.strip(),
             "review_set_id": review_set_id,
             "question": case["question"],
