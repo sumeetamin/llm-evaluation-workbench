@@ -39,5 +39,7 @@ python -m evalbench review agreement --annotations reports/reviews.jsonl --repor
 
 The command writes a self-contained HTML report and aggregate JSON alongside it. The report contains per-dimension raw agreement, expected agreement, pairwise Cohen's kappa, number of jointly labeled cases, and IDs/ratings for disagreements. It does not include question, context, answer or notes. A fingerprint of the reviewed dataset/output/split combination is included to prevent mixing annotations from different evaluation runs.
 
+To produce labels for groundedness-judge calibration, first score the same cases with `evalbench semantic-grade`. Use the dedicated `evalbench calibrate-groundedness` workflow in [`PROVIDERS_AND_TRACES.md`](PROVIDERS_AND_TRACES.md). It needs at least 30 adjudicated validation cases, including five pass and five fail labels; reviewer conflicts must be resolved by a human. The tool does not calibrate itself from agreement statistics and will not use the held-out test split.
+
 Kappa is reported as undefined when its expected-agreement denominator is zero, for example when both reviewers use one category on all shared cases. Pairwise comparisons omit cases where either reviewer left that dimension blank. The mean pairwise kappa averages only defined pairs; it is not Fleiss' kappa. Consider label prevalence and shared-case counts, discuss disagreement cases, and make adjudicated decisions separately. Agreement measures consistency, not correctness.
 
