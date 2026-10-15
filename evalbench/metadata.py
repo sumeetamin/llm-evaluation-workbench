@@ -32,6 +32,7 @@ def build_run_metadata(
     command: str,
     outputs: list[str | Path] | None = None,
     model: str | None = None,
+    provider: str | None = None,
     endpoint: str | None = None,
 ) -> dict[str, Any]:
     """Create a run manifest with stable dataset/output fingerprints and no prompt text."""
@@ -52,6 +53,8 @@ def build_run_metadata(
     }
     if model:
         payload["model"] = model
+    if provider:
+        payload["provider"] = provider
     if endpoint:
         parsed = urlsplit(endpoint)
         safe_netloc = parsed.hostname or ""
