@@ -1,6 +1,6 @@
 # LLM Evaluation Workbench
 
-An eval-driven development tool for retrieval-grounded customer-support assistants. It runs a versioned JSONL evaluation set against saved model outputs or a live OpenAI Responses-compatible endpoint, applies transparent deterministic graders, and produces a case-level HTML report. It also compares two runs to surface regressions and improvements.
+An eval-driven development tool for retrieval-grounded customer-support assistants. It runs a versioned JSONL evaluation set against saved model outputs or supported hosted model APIs, applies transparent deterministic graders, and produces a case-level HTML report. It also imports saved provider traces and compares runs to surface regressions and improvements.
 
 ## Why this exists
 
@@ -31,15 +31,44 @@ python -m evalbench evaluate \
   --report reports/candidate.html
 ```
 
-Run the set against an OpenAI Responses-compatible endpoint. Set the key in the environment; never put it in a command, config file, output fixture or GitHub repository.
+Run the set against OpenAI Responses, OpenAI Chat Completions, or Anthropic Messages. Set the key in the environment; never put it in a command, config file, output fixture or GitHub repository. The provider defaults to OpenAI Responses.
 
 ```bash
 # PowerShell
 $env:OPENAI_API_KEY = "your-key"
-python -m evalbench run --dataset data/support_qa.jsonl --model YOUR_MODEL --api-key-env OPENAI_API_KEY --outputs reports/run.jsonl --report reports/run.html
+python -m evalbench run --dataset data/support_qa.jsonl --model YOUR_MODEL --outputs reports/run.jsonl --report reports/run.html
 ```
 
-`run` sends each dataset question and its context to the configured endpoint. Use only data you are authorized to transmit. It sends requests sequentially and does not store prompts with model outputs.
+Use `--provider anthropic-messages` and set `ANTHROPIC_API_KEY` for Anthropic, or `--provider openai-chat-completions` for OpenAI's Chat Completions schema. `--endpoint` can override the provider URL and `--api-key-env` can select a custom key variable. `run` sends each dataset question and context to the selected endpoint. Use only data you are authorized to transmit. Requests run sequentially; prompts are not copied into normalized output files.
+
+Import saved provider response traces without resending prompts:
+
+```powershell
+python -m evalbench trace-import --dataset data/support_qa.jsonl --traces reports/traces.jsonl --outputs reports/imported.jsonl --report reports/imported.html
+```
+
+Each input trace is a JSONL object with `case_id`, `provider`, and a `response` object using that provider's response schema. `latency_ms` is optional. The importer extracts answer text and usage counters into EvalBench's output schema; it does not copy arbitrary trace fields. The normalized output and report still contain model answers, so keep them private unless approved for release. The full schema is documented in [`docs/PROVIDERS_AND_TRACES.md`](docs/PROVIDERS_AND_TRACES.md).
+
+Get a semantic groundedness signal from a model judge:
+
+```powershell
+python -m evalbench semantic-grade --dataset data/support_qa.jsonl --outputs reports/run.jsonl --provider openai-responses --model YOUR_JUDGE_MODEL --results reports/groundedness-scores.jsonl
+```
+
+These scores are explicitly **uncalibrated** and must not be treated as a release gate. To select a provisional threshold, collect adjudicated human groundedness labels and semantic scores for at least 30 validation cases, with at least 5 pass and 5 fail labels:
+
+```powershell
+python -m evalbench calibrate-groundedness --dataset data/with-splits.jsonl --scores reports/groundedness-scores.jsonl --annotations reports/adjudicated-reviews.jsonl --split validation --report reports/groundedness-calibration.json
+```
+
+The calibration command refuses to tune on `test`, requires explicit dataset splits and rejects reviewer conflicts until adjudicated. It reports performance on the same data used to choose the threshold, so independent validation is still required. No human labels are bundled; calibration is only complete after you collect them.
+
+Once a threshold is frozen, score a separate labeled split with the same judge version and model:
+
+```powershell
+python -m evalbench semantic-grade --dataset data/with-splits.jsonl --outputs reports/run.jsonl --provider openai-responses --model YOUR_JUDGE_MODEL --results reports/heldout-scores.jsonl --split test
+python -m evalbench validate-groundedness --dataset data/with-splits.jsonl --scores reports/heldout-scores.jsonl --annotations reports/adjudicated-heldout-reviews.jsonl --calibration reports/groundedness-calibration.json --split test --report reports/groundedness-validation.json
+```
 
 Compare two output files:
 
@@ -86,9 +115,11 @@ python -m venv .venv
 .\.venv\Scripts\python.exe benchmarks/banking77/run.py
 ```
 
+The committed reference run scores **90.88% accuracy**, **90.88% macro-F1**, and **96.98% top-3 accuracy** on the official 3,080-example test split, using a word/character TF-IDF + LinearSVC baseline. See the [HTML report](benchmarks/banking77/results/report.html) and [machine-readable metrics](benchmarks/banking77/results/report.json) for per-intent results and the reproducibility manifest. This is one classical baseline on one benchmark, not a production performance claim.
+
 ## Repository map
 
-- `evalbench/` — dataset validation, provider client, graders, reports and CLI.
+- `evalbench/` — dataset validation, provider adapters, trace normalization, deterministic and semantic graders, reports and CLI.
 - `benchmarks/banking77/` — reproducible local classifier run on a real, licensed support-intent dataset.
 - `data/support_qa.jsonl` — 16 synthetic support questions with contexts and expected behaviors.
 - `fixtures/` — hand-authored illustrative outputs for offline use. They are not model-generated results.
@@ -96,9 +127,9 @@ python -m venv .venv
 
 ## Evaluation design
 
-The examples cover answerable policy questions, missing account data, ambiguous requests, incorrect promises, citation requirements and instruction injection in retrieved material. Required phrase checks encode explicit expectations. Refusal behavior is scored against a small transparent phrase set. Citation checks verify required and allowed source IDs using `[[source_id]]` syntax.
+The examples cover answerable policy questions, missing account data, ambiguous requests, incorrect promises, citation requirements and instruction injection in retrieved material. Required phrase checks encode explicit expectations. Refusal behavior is scored against a small transparent phrase set. Citation checks verify required and allowed source IDs using `[[source_id]]` syntax. The optional semantic judge produces a separate context-support score that can be calibrated against human labels; it does not silently alter deterministic pass rates.
 
-This first version intentionally avoids an LLM-as-judge score. Add one only after defining a rubric and measuring its agreement with multiple human reviewers. Keep a held-out set for final comparisons and avoid tuning prompts against every evaluation example.
+Keep a held-out set for final comparisons and avoid tuning prompts against every evaluation example. Human-label agreement and an independent labeled holdout are required before treating semantic-judge scores as a release criterion.
 
 ## Limits and responsible use
 
@@ -114,8 +145,8 @@ This first version intentionally avoids an LLM-as-judge score. Add one only afte
 
 1. Human-review packet export and reviewer agreement report — implemented in v0.3.0.
 2. Split-aware dataset inspection/selection and run metadata/version tracking — implemented in v0.2.0.
-3. Add a provider interface for more response schemas and trace ingestion.
-4. Add semantic groundedness grading calibrated against human labels.
+3. Provider adapters and saved-trace ingestion — implemented in v0.4.0.
+4. Semantic groundedness judge, threshold calibration and separate holdout validation tooling — implemented in v0.4.0; actual calibration/validation results remain pending collection of adjudicated human labels.
 
 ## License
 
