@@ -11,9 +11,12 @@ from typing import Any
 from .dataset import DataContractError, inspect_dataset, load_dataset, load_outputs
 from .graders import grade_dataset
 from .metadata import build_run_metadata
-from .providers import ProviderError, call_responses_endpoint
+from .providers import ProviderError, call_provider
 from .report import write_agreement_reports, write_reports
 from .review import build_agreement_report, export_review_packet
+from .traces import import_traces
+from .semantic import grade_groundedness
+from .calibration import calibrate_groundedness, validate_groundedness
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -74,14 +77,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     outputs = []
     for index, case in enumerate(cases, 1):
         print(f"[{index}/{len(cases)}] {case['case_id']}", flush=True)
-        outputs.append(call_responses_endpoint(case, endpoint=args.endpoint, model=args.model, api_key_env=args.api_key_env, timeout=args.timeout))
+        outputs.append(call_provider(case, provider=args.provider, endpoint=args.endpoint, model=args.model, api_key_env=args.api_key_env, timeout=args.timeout))
     output_path = Path(args.outputs)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in outputs), encoding="utf-8")
     evaluation = grade_dataset(cases, {row["case_id"]: row for row in outputs})
     metadata = build_run_metadata(
         args.dataset, cases, split=args.split, command="run", outputs=[output_path],
-        model=args.model, endpoint=args.endpoint,
+        model=args.model, provider=args.provider, endpoint=args.endpoint,
     )
     report_path = write_reports(f"Evaluation run · {args.model}", evaluation, args.report, run_metadata=metadata)
     print(f"Pass rate: {evaluation['summary']['passed_cases']}/{evaluation['summary']['total_cases']} ({evaluation['summary']['pass_rate']:.1%})")
@@ -135,6 +138,68 @@ def cmd_review_agreement(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_trace_import(args: argparse.Namespace) -> int:
+    cases = load_dataset(args.dataset, split=args.split)
+    outputs = import_traces(args.traces)
+    output_path = Path(args.outputs)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in outputs), encoding="utf-8")
+    evaluation = grade_dataset(cases, {row["case_id"]: row for row in outputs})
+    metadata = build_run_metadata(args.dataset, cases, split=args.split, command="trace-import", outputs=[output_path])
+    report = write_reports("Imported trace evaluation", evaluation, args.report, run_metadata=metadata)
+    summary = evaluation["summary"]
+    print(f"Imported traces: {len(outputs)}; evaluated cases: {summary['total_cases']}; pass rate: {summary['pass_rate']:.1%}")
+    print(f"Normalized outputs: {output_path}")
+    print(f"HTML report: {report}")
+    print("Raw request/response trace fields were not copied to the normalized outputs.")
+    return 0
+
+
+def cmd_semantic_grade(args: argparse.Namespace) -> int:
+    cases = load_dataset(args.dataset, split=args.split)
+    outputs = load_outputs(args.outputs)
+    rows = []
+    for index, case in enumerate(cases, 1):
+        output = outputs.get(case["case_id"])
+        if output is None:
+            raise DataContractError(f"missing model output for semantic grading: {case['case_id']}")
+        print(f"[{index}/{len(cases)}] {case['case_id']}", flush=True)
+        rows.append(grade_groundedness(
+            case, output, provider=args.provider, model=args.model,
+            endpoint=args.endpoint, api_key_env=args.api_key_env, timeout=args.timeout,
+        ))
+    destination = Path(args.results)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8")
+    print(f"Uncalibrated semantic scores: {destination}")
+    print("This is a model-judge signal, not a calibrated pass/fail result. Do not use it as a release gate yet.")
+    return 0
+
+
+def cmd_calibrate_groundedness(args: argparse.Namespace) -> int:
+    report = calibrate_groundedness(args.dataset, args.scores, args.annotations, split=args.split)
+    destination = Path(args.report)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"Exploratory groundedness threshold: {report['threshold']:.3f} ({report['cases']} adjudicated cases)")
+    print(f"Calibration report: {destination}")
+    print(report["warning"])
+    return 0
+
+
+def cmd_validate_groundedness(args: argparse.Namespace) -> int:
+    report = validate_groundedness(
+        args.dataset, args.scores, args.annotations, args.calibration, split=args.split,
+    )
+    destination = Path(args.report)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    metrics = report["metrics"]
+    print(f"Independent holdout: {report['cases']} adjudicated cases; accuracy {metrics['accuracy']:.1%}; balanced accuracy {metrics['balanced_accuracy']:.1%}")
+    print(f"Validation report: {destination}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="evalbench", description="Run transparent, application-specific LLM evaluations.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -151,13 +216,14 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--split", choices=("train", "validation", "test"), help="score only cases assigned to this split")
     evaluate.set_defaults(func=cmd_evaluate)
 
-    run = sub.add_parser("run", help="call a Responses-compatible endpoint and evaluate its answers")
+    run = sub.add_parser("run", help="call a supported provider endpoint and evaluate its answers")
     run.add_argument("--dataset", required=True)
     run.add_argument("--outputs", required=True)
     run.add_argument("--report", required=True)
-    run.add_argument("--endpoint", default="https://api.openai.com/v1/responses")
+    run.add_argument("--provider", choices=("openai-responses", "openai-chat-completions", "anthropic-messages"), default="openai-responses")
+    run.add_argument("--endpoint", help="override the selected provider's default HTTPS endpoint")
     run.add_argument("--model", required=True)
-    run.add_argument("--api-key-env", default="OPENAI_API_KEY")
+    run.add_argument("--api-key-env", help="key environment variable; defaults by provider")
     run.add_argument("--timeout", type=int, default=60)
     run.add_argument("--split", choices=("train", "validation", "test"), help="send only cases assigned to this split")
     run.set_defaults(func=cmd_run)
@@ -191,6 +257,43 @@ def build_parser() -> argparse.ArgumentParser:
     review_agreement.add_argument("--annotations", required=True, help="combined completed review-packet JSONL")
     review_agreement.add_argument("--report", required=True)
     review_agreement.set_defaults(func=cmd_review_agreement)
+
+    traces = sub.add_parser("trace-import", help="normalize saved provider response traces and evaluate them")
+    traces.add_argument("--dataset", required=True)
+    traces.add_argument("--traces", required=True, help="JSONL envelopes with case_id, provider, and response")
+    traces.add_argument("--outputs", required=True, help="prompt-free normalized JSONL output destination")
+    traces.add_argument("--report", required=True)
+    traces.add_argument("--split", choices=("train", "validation", "test"))
+    traces.set_defaults(func=cmd_trace_import)
+
+    semantic = sub.add_parser("semantic-grade", help="score answer groundedness with an uncalibrated model judge")
+    semantic.add_argument("--dataset", required=True)
+    semantic.add_argument("--outputs", required=True)
+    semantic.add_argument("--results", required=True)
+    semantic.add_argument("--provider", choices=("openai-responses", "openai-chat-completions", "anthropic-messages"), default="openai-responses")
+    semantic.add_argument("--model", required=True)
+    semantic.add_argument("--endpoint")
+    semantic.add_argument("--api-key-env")
+    semantic.add_argument("--timeout", type=int, default=60)
+    semantic.add_argument("--split", choices=("train", "validation", "test"))
+    semantic.set_defaults(func=cmd_semantic_grade)
+
+    calibrate = sub.add_parser("calibrate-groundedness", help="choose a provisional threshold from adjudicated human labels")
+    calibrate.add_argument("--dataset", required=True)
+    calibrate.add_argument("--scores", required=True)
+    calibrate.add_argument("--annotations", required=True)
+    calibrate.add_argument("--split", choices=("train", "validation"), default="validation")
+    calibrate.add_argument("--report", required=True)
+    calibrate.set_defaults(func=cmd_calibrate_groundedness)
+
+    validate = sub.add_parser("validate-groundedness", help="evaluate a frozen semantic threshold on a separate labeled split")
+    validate.add_argument("--dataset", required=True)
+    validate.add_argument("--scores", required=True)
+    validate.add_argument("--annotations", required=True)
+    validate.add_argument("--calibration", required=True, help="calibration JSON produced by calibrate-groundedness")
+    validate.add_argument("--split", choices=("train", "validation", "test"), default="test")
+    validate.add_argument("--report", required=True)
+    validate.set_defaults(func=cmd_validate_groundedness)
     return parser
 
 
