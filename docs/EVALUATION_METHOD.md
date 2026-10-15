@@ -8,7 +8,7 @@ Catch changes that make a support assistant less safe or less useful on the beha
 
 The included 16 examples are hand-authored, synthetic cases split across policy answers, missing account data, ambiguous requests, unsupported claims and malicious instructions inside retrieved text. They exercise the included graders; they are not sampled from user traffic and do not represent real-world performance.
 
-## Graders
+## Deterministic graders
 
 | Check | Rule | Interpretation |
 | --- | --- | --- |
@@ -21,6 +21,8 @@ The included 16 examples are hand-authored, synthetic cases split across policy 
 
 The case pass rate is the fraction passing every configured check. Per-check rates are shown alongside it so one aggregate score does not conceal a particular failure type. Missing outputs fail a case. Extra output IDs are listed.
 
+`semantic-grade` is a separate model-judge signal for claim support by provided context. Its score is not included in deterministic pass rates. Provider, model and judge version should be retained with every score file, and the result should be checked against reviewers before use.
+
 ## Comparing runs
 
 Runs are graded on the same dataset. The comparison reports the pass-rate delta in percentage points, case regressions and improvements. A score delta alone does not establish statistical significance or prove one model is better. Review changed cases and latency/cost trade-offs.
@@ -32,4 +34,8 @@ Deterministic checks do not judge semantic correctness, tone, completeness, or w
 `evalbench review agreement` reports raw agreement and unweighted Cohen's kappa for each rubric dimension and reviewer pair. It compares only cases labeled by both members of a pair; `unsure` is an explicit category. The reported mean is the arithmetic mean across defined pairwise kappas, not a multi-rater statistic. Kappa can be undefined when reviewers use only one category and is sensitive to category prevalence. Always inspect shared-case counts, raw agreement, and disagreement cases. Agreement describes consistency, not validity or answer quality; reviewers should discuss disagreements and record adjudicated labels separately.
 
 Before a release decision, review representative passes and failures, calibrate graders against multiple reviewers, and keep a held-out set that was not used to tune the prompt.
+
+## Semantic judge calibration
+
+The optional `calibrate-groundedness` command selects a provisional score threshold by maximizing balanced accuracy against adjudicated `pass`/`fail` groundedness labels on a designated `train` or `validation` split. It requires at least 30 labeled cases and five examples in each class; it refuses to tune on `test`. The returned metrics are calculated on the calibration records and therefore do not estimate independent performance. Freeze the judge/model/prompt and threshold, then use `validate-groundedness` to measure it against a separately labeled split without reselecting the threshold. Calibration is not complete until the labels exist, and a release gate needs independent validation evidence.
 
