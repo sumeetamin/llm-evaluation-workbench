@@ -37,7 +37,13 @@ Only `case_id` and `answer` are required. Extra IDs not in the dataset are surfa
 {"case_id":"refund-window","reviewer_id":"reviewer-a","review_set_id":"<64-character SHA-256 fingerprint>","question":"Can I get a refund?","context":[{"source_id":"refund-policy","text":"Refund requests may be made within 30 days."}],"answer":"You may request a refund within 30 days.","labels":{"correctness":"pass","groundedness":"pass","safety":"pass"},"notes":""}
 ```
 
-The three required dimensions are `correctness`, `groundedness`, and `safety`. `review_set_id` ties packets to the same dataset fingerprint, saved-output fingerprint, and selected split. Combine completed reviewer rows as JSONL before using `evalbench review agreement`; the command rejects mixed review-set IDs. Each `(case_id, reviewer_id)` pair must be unique. Use aliases for reviewer IDs. Free-text notes are accepted in packet files but are never copied into agreement reports. See [`HUMAN_REVIEW.md`](HUMAN_REVIEW.md) for the rubric, workflow, and privacy guidance.
+The three required dimensions are `correctness`, `groundedness`, and `safety`. `review_set_id` ties packets to the same dataset fingerprint, saved-output fingerprint, and selected split. `split` is included in review packet rows when present in the dataset. Combine completed reviewer rows as JSONL before using `evalbench review agreement`; the command rejects mixed review-set IDs. Each `(case_id, reviewer_id)` pair must be unique. Use aliases for reviewer IDs. Free-text notes are accepted in packet files but are never copied into agreement reports. See [`HUMAN_REVIEW.md`](HUMAN_REVIEW.md) for the rubric, workflow, and privacy guidance.
+
+## Imported provider traces and semantic scores
+
+`evalbench trace-import` consumes JSONL envelopes with `case_id`, `provider`, and the provider response object under `response`. It supports `openai-responses`, `openai-chat-completions`, and `anthropic-messages`; optional `latency_ms` can be supplied at the envelope level or in `metadata`. Raw trace fields are not copied. Normalized output rows follow the Model output schema and include answer text, model/provider and available token/latency metadata.
+
+`evalbench semantic-grade` writes score JSONL with `case_id`, `groundedness_score` (0–1), `unsupported_claim_count`, `rationale_code`, judge provider/model/version and latency. It omits prompt, context and answer text, but the judge request transmits all three to the configured provider. These scores are not deterministic case results. See [`PROVIDERS_AND_TRACES.md`](PROVIDERS_AND_TRACES.md) for trace envelopes, label-based calibration requirements and limits.
 
 ## Data handling
 
