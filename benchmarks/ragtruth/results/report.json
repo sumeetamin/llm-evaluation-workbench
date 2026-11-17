@@ -1,0 +1,133 @@
+{
+  "benchmark": "RAGTruth response-level hallucination detection with a lexical support baseline",
+  "dataset_rows": 17617,
+  "excluded_quality_rows": 173,
+  "label_mapping": "hallucination if any annotated span is not marked implicit_true; all other good rows are non-hallucination",
+  "limitations": [
+    "This lexical baseline is not the workbench's LLM semantic judge and does not calibrate that judge.",
+    "RAGTruth's span labels are mapped to response-level labels; implicit_true spans are not counted as hallucinations.",
+    "Lexical overlap is not entailment: paraphrases, negation, factual correctness and domain-specific meaning are not modeled.",
+    "Results apply to the public RAGTruth task mixture and this fixed baseline only; they do not establish production quality."
+  ],
+  "model": {
+    "scikit_learn": "1.9.1",
+    "threshold": 0.27021753073591154,
+    "type": "TF-IDF context/answer cosine similarity"
+  },
+  "quality_filter": "quality == good; incorrect_refusal and truncated excluded",
+  "response_sha256": "e4c2e4ac24fff676d8984cc61c35d791612fadc58015335d97dd632375e18073",
+  "runtime": {
+    "created_utc": "2026-11-17T10:55:37.349784+00:00",
+    "python": "3.14.3"
+  },
+  "source": "ParticleMedia/RAGTruth official response.jsonl and source_info.jsonl",
+  "source_info_sha256": "0dffc26ea9f3c1c3d7c7e8336b56ef1646e3cec876edffcca3c9c624d12d578b",
+  "source_revision": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
+  "splits": {
+    "model_fit": {
+      "cases": 11960,
+      "source_groups": 2012
+    },
+    "official_test": {
+      "accuracy": 0.7532710280373832,
+      "average_precision_hallucination": 0.6254185113198545,
+      "balanced_accuracy": 0.7094215978505403,
+      "cases": 2675,
+      "confusion_matrix": {
+        "false_negative": 378,
+        "false_positive": 282,
+        "true_negative": 1499,
+        "true_positive": 516
+      },
+      "hallucination": 894,
+      "hallucination_precision": 0.6466165413533834,
+      "hallucination_recall": 0.5771812080536913,
+      "non_hallucination": 1781,
+      "roc_auc_lexical_support": 0.7810526725678835,
+      "source_groups": 450,
+      "threshold": 0.27021753073591154
+    },
+    "threshold_selection": {
+      "accuracy": 0.7139503688799463,
+      "average_precision_hallucination": 0.632039079952843,
+      "balanced_accuracy": 0.688829945759075,
+      "cases": 2982,
+      "confusion_matrix": {
+        "false_negative": 544,
+        "false_positive": 309,
+        "true_negative": 1457,
+        "true_positive": 672
+      },
+      "hallucination": 1216,
+      "hallucination_precision": 0.6850152905198776,
+      "hallucination_recall": 0.5526315789473685,
+      "non_hallucination": 1766,
+      "roc_auc_lexical_support": 0.7452860500983489,
+      "source_groups": 503,
+      "threshold": 0.27021753073591154
+    }
+  },
+  "test_by_task": {
+    "Data2txt": {
+      "accuracy": 0.6555555555555556,
+      "average_precision_hallucination": 0.7475952041497707,
+      "balanced_accuracy": 0.5777925531914894,
+      "cases": 900,
+      "confusion_matrix": {
+        "false_negative": 65,
+        "false_positive": 245,
+        "true_negative": 91,
+        "true_positive": 499
+      },
+      "hallucination": 564,
+      "hallucination_precision": 0.6706989247311828,
+      "hallucination_recall": 0.8847517730496454,
+      "non_hallucination": 336,
+      "roc_auc_lexical_support": 0.6621496116176968,
+      "threshold": 0.27021753073591154
+    },
+    "QA": {
+      "accuracy": 0.8228571428571428,
+      "average_precision_hallucination": 0.20462420281283727,
+      "balanced_accuracy": 0.4888865389650936,
+      "cases": 875,
+      "confusion_matrix": {
+        "false_negative": 133,
+        "false_positive": 22,
+        "true_negative": 719,
+        "true_positive": 1
+      },
+      "hallucination": 134,
+      "hallucination_precision": 0.043478260869565216,
+      "hallucination_recall": 0.007462686567164179,
+      "non_hallucination": 741,
+      "roc_auc_lexical_support": 0.6322537112010795,
+      "threshold": 0.27021753073591154
+    },
+    "Summary": {
+      "accuracy": 0.7833333333333333,
+      "average_precision_hallucination": 0.3450930575237917,
+      "balanced_accuracy": 0.5301629174397031,
+      "cases": 900,
+      "confusion_matrix": {
+        "false_negative": 180,
+        "false_positive": 15,
+        "true_negative": 689,
+        "true_positive": 16
+      },
+      "hallucination": 196,
+      "hallucination_precision": 0.5161290322580645,
+      "hallucination_recall": 0.08163265306122448,
+      "non_hallucination": 704,
+      "roc_auc_lexical_support": 0.6501478432282004,
+      "threshold": 0.27021753073591154
+    }
+  },
+  "threshold_selection": {
+    "accuracy": 0.7139503688799463,
+    "balanced_accuracy": 0.688829945759075,
+    "method": "maximize balanced accuracy on a source-group-held-out 20% slice of official training data",
+    "threshold": 0.27021753073591154
+  }
+}
+

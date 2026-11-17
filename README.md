@@ -61,7 +61,7 @@ These scores are explicitly **uncalibrated** and must not be treated as a releas
 python -m evalbench calibrate-groundedness --dataset data/with-splits.jsonl --scores reports/groundedness-scores.jsonl --annotations reports/adjudicated-reviews.jsonl --split validation --report reports/groundedness-calibration.json
 ```
 
-The calibration command refuses to tune on `test`, requires explicit dataset splits and rejects reviewer conflicts until adjudicated. It reports performance on the same data used to choose the threshold, so independent validation is still required. No human labels are bundled; calibration is only complete after you collect them.
+The calibration command refuses to tune on `test`, requires explicit dataset splits and rejects reviewer conflicts until adjudicated. It reports performance on the same data used to choose the threshold, so independent validation is still required. RAGTruth's public span annotations support its separate lexical baseline, but do not directly calibrate this LLM judge. Judge calibration still needs compatible, adjudicated labels and scores.
 
 Once a threshold is frozen, score a separate labeled split with the same judge version and model:
 
@@ -117,10 +117,24 @@ python -m venv .venv
 
 The committed reference run scores **90.88% accuracy**, **90.88% macro-F1**, and **96.98% top-3 accuracy** on the official 3,080-example test split, using a word/character TF-IDF + LinearSVC baseline. See the [HTML report](benchmarks/banking77/results/report.html) and [machine-readable metrics](benchmarks/banking77/results/report.json) for per-intent results and the reproducibility manifest. This is one classical baseline on one benchmark, not a production performance claim.
 
+## Real-world groundedness-related benchmark
+
+The workbench includes a reproducible lexical-support baseline on the human-annotated [RAGTruth corpus](https://github.com/ParticleMedia/RAGTruth), with group-aware threshold selection and an untouched official test split. It downloads the upstream files on first run and keeps them out of Git.
+
+```powershell
+python -m pip install -e ".[benchmark]"
+python benchmarks/ragtruth/run.py
+```
+
+The fixed run evaluates 2,675 quality-filtered test responses from 450 source groups. It achieved **75.3% accuracy**, **70.9% balanced accuracy**, **78.1% ROC-AUC**, and **62.5% average precision** for hallucination detection. The threshold (0.2702) was selected on a source-group-held-out slice of the official training data. See the [benchmark report](benchmarks/ragtruth/results/report.json) and [method notes](benchmarks/ragtruth/README.md).
+
+This is a TF-IDF context/answer overlap baseline, not the workbench's LLM semantic judge and not a calibration result for that judge. Lexical overlap does not establish entailment; this benchmark is not a production safety or quality claim.
+
 ## Repository map
 
 - `evalbench/` — dataset validation, provider adapters, trace normalization, deterministic and semantic graders, reports and CLI.
 - `benchmarks/banking77/` — reproducible local classifier run on a real, licensed support-intent dataset.
+- `benchmarks/ragtruth/` — RAGTruth lexical groundedness baseline with source-group threshold selection.
 - `data/support_qa.jsonl` — 16 synthetic support questions with contexts and expected behaviors.
 - `fixtures/` — hand-authored illustrative outputs for offline use. They are not model-generated results.
 - `docs/` — design, data contract, evaluation methodology, human-review rubric and limitations.
@@ -146,7 +160,7 @@ Keep a held-out set for final comparisons and avoid tuning prompts against every
 1. Human-review packet export and reviewer agreement report — implemented in v0.3.0.
 2. Split-aware dataset inspection/selection and run metadata/version tracking — implemented in v0.2.0.
 3. Provider adapters and saved-trace ingestion — implemented in v0.4.0.
-4. Semantic groundedness judge, threshold calibration and separate holdout validation tooling — implemented in v0.4.0; actual calibration/validation results remain pending collection of adjudicated human labels.
+4. Semantic groundedness judge, threshold calibration and separate holdout validation tooling — implemented in v0.4.0; actual calibration/validation of the LLM semantic judge remains pending a compatible adjudicated dataset and judge scores; the RAGTruth lexical baseline is separate.
 
 ## License
 

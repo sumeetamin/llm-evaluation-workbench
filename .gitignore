@@ -4,6 +4,8 @@ __pycache__/
 *.py[cod]
 reports/
 benchmarks/banking77/data/
+benchmarks/ragtruth/data/
 .DS_Store
 Thumbs.db
-
+benchmarks/ragtruth/data/
+benchmarks/ragtruth/results/test_scores.jsonl

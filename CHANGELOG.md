@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- Added a reproducible RAGTruth lexical-support baseline with a source-group-held-out threshold and untouched official test evaluation.
+- Added pinned data retrieval, source fingerprints, split checks, aggregate and per-task metrics, and an attribution/method note.
+- Clarified that a public lexical baseline does not calibrate the LLM semantic judge.
+
+
 ## 0.4.0
 
 - Added OpenAI Responses, OpenAI Chat Completions and Anthropic Messages adapters under one normalized output contract.
