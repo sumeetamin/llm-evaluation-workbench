@@ -130,11 +130,13 @@ The fixed run evaluates 2,675 quality-filtered test responses from 450 source gr
 
 This is a TF-IDF context/answer overlap baseline, not the workbench's LLM semantic judge and not a calibration result for that judge. Lexical overlap does not establish entailment; this benchmark is not a production safety or quality claim.
 
+A local embedding-similarity check on a balanced, source-disjoint 100-case RAGTruth sample compared mean-pooled MiniLM cosine similarity with TF-IDF. The embedding baseline reached 58% balanced accuracy and 0.593 ROC-AUC on that sample; TF-IDF reached 52% balanced accuracy and 0.672 ROC-AUC. With only 100 test cases, this comparison is inconclusive; neither baseline calibrates the LLM judge. See the [aggregate report](benchmarks/ragtruth/results/embedding_report.json) and [method notes](benchmarks/ragtruth/README.md).
+
 ## Repository map
 
 - `evalbench/` — dataset validation, provider adapters, trace normalization, deterministic and semantic graders, reports and CLI.
 - `benchmarks/banking77/` — reproducible local classifier run on a real, licensed support-intent dataset.
-- `benchmarks/ragtruth/` — RAGTruth lexical groundedness baseline with source-group threshold selection.
+- `benchmarks/ragtruth/` — RAGTruth lexical and local embedding-similarity baselines with source-group-held-out evaluation.
 - `data/support_qa.jsonl` — 16 synthetic support questions with contexts and expected behaviors.
 - `fixtures/` — hand-authored illustrative outputs for offline use. They are not model-generated results.
 - `docs/` — design, data contract, evaluation methodology, human-review rubric and limitations.
