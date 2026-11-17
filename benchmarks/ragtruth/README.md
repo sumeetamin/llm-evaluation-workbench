@@ -27,3 +27,26 @@ It gives the workbench a reproducible, real-data grounding-related benchmark wit
 
 The upstream repository provides an MIT license; retain attribution and check the authors' current data-use terms before redistributing the corpus or derived data. Raw source files are not committed here.
 
+## Semantic judge calibration sample
+
+The existing runner evaluates a local lexical baseline. To prepare a separate private sample for the workbench's semantic groundedness judge, run:
+
+```powershell
+python -m pip install -e ".[benchmark]"
+python -m benchmarks.ragtruth.prepare_semantic_calibration
+```
+
+This creates 100 cases in each split under the ignored `benchmarks/ragtruth/calibration_private/` directory: 50 pass and 50 fail examples, with one response per source group. The `validation` cases are sampled from a deterministic 20% source-group holdout of the official training set; the `test` cases come from the untouched official test split, whose source groups are disjoint from train. The sample is balanced by label, so it is useful for threshold diagnostics but is not prevalence-representative.
+
+RAGTruth supplies human-annotated hallucination spans. The adapter maps a response to `fail` when any annotated span is not marked `implicit_true`, and to `pass` otherwise. This is a simplified, corpus-derived response-level label, not custom adjudication of the workbench's support-QA cases. Do not present the result as production validation or a safety guarantee.
+
+Preparation makes no model-provider requests. To score the sample, first review provider terms and cost, then provide your own key and selected model. This step sends the sampled source and answer text to that provider. Use the same provider/model for both splits:
+
+```powershell
+python -m evalbench semantic-grade --dataset benchmarks/ragtruth/calibration_private/dataset.jsonl --outputs benchmarks/ragtruth/calibration_private/outputs.jsonl --results benchmarks/ragtruth/calibration_private/validation-scores.jsonl --provider openai-responses --model YOUR_MODEL --split validation
+python -m evalbench semantic-grade --dataset benchmarks/ragtruth/calibration_private/dataset.jsonl --outputs benchmarks/ragtruth/calibration_private/outputs.jsonl --results benchmarks/ragtruth/calibration_private/test-scores.jsonl --provider openai-responses --model YOUR_MODEL --split test
+python -m evalbench calibrate-groundedness --dataset benchmarks/ragtruth/calibration_private/dataset.jsonl --scores benchmarks/ragtruth/calibration_private/validation-scores.jsonl --annotations benchmarks/ragtruth/calibration_private/annotations.jsonl --split validation --report benchmarks/ragtruth/calibration_private/calibration.json
+python -m evalbench validate-groundedness --dataset benchmarks/ragtruth/calibration_private/dataset.jsonl --scores benchmarks/ragtruth/calibration_private/test-scores.jsonl --annotations benchmarks/ragtruth/calibration_private/annotations.jsonl --calibration benchmarks/ragtruth/calibration_private/calibration.json --split test --report benchmarks/ragtruth/calibration_private/holdout.json
+```
+
+The generated dataset, answers, annotations and score files remain local and ignored by Git. The manifest contains aggregate counts, source fingerprints, split details and the label mapping, but no source text or answers.
