@@ -9,3 +9,4 @@ benchmarks/ragtruth/data/
 Thumbs.db
 benchmarks/ragtruth/data/
 benchmarks/ragtruth/results/test_scores.jsonl
+benchmarks/ragtruth/calibration_private/
