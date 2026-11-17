@@ -14,6 +14,7 @@ dependencies = []
 
 [project.optional-dependencies]
 benchmark = ["scikit-learn>=1.4,<2"]
+embedding-benchmark = ["scikit-learn>=1.4,<2", "torch>=2.2,<3", "transformers>=4.45,<6"]
 
 [project.scripts]
 evalbench = "evalbench.cli:main"
