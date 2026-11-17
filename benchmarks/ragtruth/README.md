@@ -50,3 +50,20 @@ python -m evalbench validate-groundedness --dataset benchmarks/ragtruth/calibrat
 ```
 
 The generated dataset, answers, annotations and score files remain local and ignored by Git. The manifest contains aggregate counts, source fingerprints, split details and the label mapping, but no source text or answers.
+
+## Local embedding-similarity baseline
+
+For a no-provider comparison, the optional baseline uses the pinned `sentence-transformers/all-MiniLM-L6-v2` encoder to compare context and answer embeddings. It selects a threshold on the 100-case source-disjoint validation sample and reports once on the 100-case test sample; both are balanced 50/50 pass/fail and are not representative of natural traffic. It also reports a TF-IDF baseline on the same sample for a direct comparison.
+
+Install the optional dependencies and run after preparing the private sample:
+
+```powershell
+python -m pip install -e ".[embedding-benchmark]"
+python benchmarks/ragtruth/run_embedding_baseline.py --local-files-only
+```
+
+With `--local-files-only`, the pinned model revision must already be cached. Omit the flag to download it from Hugging Face on first use. The machine-readable aggregate report is [`results/embedding_report.json`](results/embedding_report.json); row-level scores stay local under the ignored `calibration_private/` directory.
+
+On this 100-case test sample, the embedding baseline scored 58% accuracy and balanced accuracy, with 0.593 ROC-AUC and 0.32 recall for the fail label. The same-sample TF-IDF baseline scored 52% accuracy and balanced accuracy, with 0.672 ROC-AUC and 0.10 fail recall at its validation-selected threshold. This small-sample comparison is inconclusive; the embedding score did not show strong discrimination.
+
+This is an embedding-similarity baseline, not the workbench's LLM semantic judge or an entailment model. Similarity can miss negation, contradictions, unsupported details and multi-hop reasoning; each context and answer is truncated to 256 tokens. Labels are response-level mappings of RAGTruth span annotations, not product-specific reviewer adjudication. These results do not calibrate the semantic judge or validate product-specific support QA.
