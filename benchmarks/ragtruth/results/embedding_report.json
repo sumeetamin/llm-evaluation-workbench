@@ -1,0 +1,259 @@
+{
+  "benchmark": "RAGTruth response-level proxy labels with a local embedding support-similarity baseline",
+  "label_mapping": "pass when no non-implicit-true hallucination span is annotated; fail when at least one such span is annotated.",
+  "limitations": [
+    "This is an embedding-similarity baseline, not an LLM judge, entailment model, or groundedness guarantee.",
+    "Cosine similarity can miss contradiction, negation, unsupported details, and multi-hop reasoning.",
+    "Context and answer are each truncated to 256 tokens before encoding.",
+    "Labels are response-level mappings of RAGTruth human hallucination spans, not product-specific reviewer adjudication.",
+    "The sample is balanced and small; test metrics do not estimate natural traffic performance.",
+    "This benchmark does not validate the workbench's semantic judge or support-QA product behavior."
+  ],
+  "model": {
+    "device": "cpu",
+    "id": "sentence-transformers/all-MiniLM-L6-v2",
+    "max_tokens_per_text": 256,
+    "revision": "c9745ed1d9f207416be6d2e6f8de32d1f16199bf",
+    "scikit_learn": "1.8.0",
+    "torch": "2.11.0+cpu",
+    "transformers": "5.5.0",
+    "type": "mean-pooled sentence-embedding cosine similarity"
+  },
+  "runtime": {
+    "created_utc": "2026-11-17T14:42:31.587586+00:00",
+    "python": "3.14.3"
+  },
+  "same_sample_comparison": {
+    "embedding_similarity": {
+      "test": {
+        "accuracy": 0.58,
+        "average_precision_fail": 0.5904797581614235,
+        "balanced_accuracy": 0.58,
+        "cases": 100,
+        "confusion_matrix": {
+          "detected_fail": 16,
+          "false_fail": 8,
+          "missed_fail": 34,
+          "true_pass": 42
+        },
+        "fail": 50,
+        "fail_f1": 0.43243243243243246,
+        "fail_precision": 0.6666666666666666,
+        "fail_recall": 0.32,
+        "pass": 50,
+        "roc_auc_support_similarity": 0.5932,
+        "threshold": 0.3367023766040802
+      },
+      "threshold_selection": {
+        "accuracy": 0.59,
+        "balanced_accuracy": 0.59,
+        "threshold": 0.3367023766040802
+      },
+      "validation": {
+        "accuracy": 0.59,
+        "average_precision_fail": 0.5598018715044465,
+        "balanced_accuracy": 0.59,
+        "cases": 100,
+        "confusion_matrix": {
+          "detected_fail": 21,
+          "false_fail": 12,
+          "missed_fail": 29,
+          "true_pass": 38
+        },
+        "fail": 50,
+        "fail_f1": 0.5060240963855421,
+        "fail_precision": 0.6363636363636364,
+        "fail_recall": 0.42,
+        "pass": 50,
+        "roc_auc_support_similarity": 0.5451999999999999,
+        "threshold": 0.3367023766040802
+      }
+    },
+    "tfidf_lexical_similarity": {
+      "model": "TF-IDF context/answer cosine similarity fitted on validation context and answer text",
+      "test": {
+        "accuracy": 0.52,
+        "average_precision_fail": 0.6767295741020096,
+        "balanced_accuracy": 0.52,
+        "cases": 100,
+        "confusion_matrix": {
+          "detected_fail": 5,
+          "false_fail": 3,
+          "missed_fail": 45,
+          "true_pass": 47
+        },
+        "fail": 50,
+        "fail_f1": 0.1724137931034483,
+        "fail_precision": 0.625,
+        "fail_recall": 0.1,
+        "pass": 50,
+        "roc_auc_support_similarity": 0.6724,
+        "threshold": 0.18738089294085894
+      },
+      "threshold_selection": {
+        "accuracy": 0.63,
+        "balanced_accuracy": 0.63,
+        "threshold": 0.18738089294085894
+      },
+      "validation": {
+        "accuracy": 0.63,
+        "average_precision_fail": 0.6600783166553026,
+        "balanced_accuracy": 0.63,
+        "cases": 100,
+        "confusion_matrix": {
+          "detected_fail": 18,
+          "false_fail": 5,
+          "missed_fail": 32,
+          "true_pass": 45
+        },
+        "fail": 50,
+        "fail_f1": 0.4931506849315068,
+        "fail_precision": 0.782608695652174,
+        "fail_recall": 0.36,
+        "pass": 50,
+        "roc_auc_support_similarity": 0.6572000000000001,
+        "threshold": 0.18738089294085894
+      }
+    }
+  },
+  "sample_splits": {
+    "test": {
+      "cases": 100,
+      "fail": 50,
+      "pass": 50,
+      "source_groups": 100,
+      "task_types": {
+        "Data2txt": 30,
+        "QA": 32,
+        "Summary": 38
+      }
+    },
+    "validation": {
+      "cases": 100,
+      "fail": 50,
+      "pass": 50,
+      "source_groups": 100,
+      "task_types": {
+        "Data2txt": 36,
+        "QA": 29,
+        "Summary": 35
+      }
+    }
+  },
+  "sampling": "One response per distinct source group and class, balanced pass/fail sample; source groups selected from official train for validation and untouched official test for holdout.",
+  "source": "ParticleMedia/RAGTruth official response and source-information files",
+  "source_group_counts": {
+    "overlap": 0,
+    "test": 450,
+    "validation": 503
+  },
+  "source_revision": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
+  "source_sha256": {
+    "response.jsonl": "e4c2e4ac24fff676d8984cc61c35d791612fadc58015335d97dd632375e18073",
+    "source_info.jsonl": "0dffc26ea9f3c1c3d7c7e8336b56ef1646e3cec876edffcca3c9c624d12d578b"
+  },
+  "test": {
+    "accuracy": 0.58,
+    "average_precision_fail": 0.5904797581614235,
+    "balanced_accuracy": 0.58,
+    "cases": 100,
+    "confusion_matrix": {
+      "detected_fail": 16,
+      "false_fail": 8,
+      "missed_fail": 34,
+      "true_pass": 42
+    },
+    "fail": 50,
+    "fail_f1": 0.43243243243243246,
+    "fail_precision": 0.6666666666666666,
+    "fail_recall": 0.32,
+    "pass": 50,
+    "roc_auc_support_similarity": 0.5932,
+    "threshold": 0.3367023766040802
+  },
+  "test_by_task": {
+    "Data2txt": {
+      "accuracy": 0.5666666666666667,
+      "average_precision_fail": 0.6421365639146666,
+      "balanced_accuracy": 0.4365079365079365,
+      "cases": 30,
+      "confusion_matrix": {
+        "detected_fail": 16,
+        "false_fail": 8,
+        "missed_fail": 5,
+        "true_pass": 1
+      },
+      "fail": 21,
+      "fail_f1": 0.7111111111111111,
+      "fail_precision": 0.6666666666666666,
+      "fail_recall": 0.7619047619047619,
+      "pass": 9,
+      "roc_auc_support_similarity": 0.39153439153439157,
+      "threshold": 0.3367023766040802
+    },
+    "QA": {
+      "accuracy": 0.71875,
+      "average_precision_fail": 0.5413125300625301,
+      "balanced_accuracy": 0.5,
+      "cases": 32,
+      "confusion_matrix": {
+        "detected_fail": 0,
+        "false_fail": 0,
+        "missed_fail": 9,
+        "true_pass": 23
+      },
+      "fail": 9,
+      "fail_f1": 0.0,
+      "fail_precision": 0.0,
+      "fail_recall": 0.0,
+      "pass": 23,
+      "roc_auc_support_similarity": 0.5748792270531401,
+      "threshold": 0.3367023766040802
+    },
+    "Summary": {
+      "accuracy": 0.47368421052631576,
+      "average_precision_fail": 0.4914939720208184,
+      "balanced_accuracy": 0.5,
+      "cases": 38,
+      "confusion_matrix": {
+        "detected_fail": 0,
+        "false_fail": 0,
+        "missed_fail": 20,
+        "true_pass": 18
+      },
+      "fail": 20,
+      "fail_f1": 0.0,
+      "fail_precision": 0.0,
+      "fail_recall": 0.0,
+      "pass": 18,
+      "roc_auc_support_similarity": 0.4472222222222222,
+      "threshold": 0.3367023766040802
+    }
+  },
+  "threshold_selection": {
+    "accuracy": 0.59,
+    "balanced_accuracy": 0.59,
+    "method": "maximize balanced accuracy on the separate source-disjoint validation sample",
+    "threshold": 0.3367023766040802
+  },
+  "validation": {
+    "accuracy": 0.59,
+    "average_precision_fail": 0.5598018715044465,
+    "balanced_accuracy": 0.59,
+    "cases": 100,
+    "confusion_matrix": {
+      "detected_fail": 21,
+      "false_fail": 12,
+      "missed_fail": 29,
+      "true_pass": 38
+    },
+    "fail": 50,
+    "fail_f1": 0.5060240963855421,
+    "fail_precision": 0.6363636363636364,
+    "fail_recall": 0.42,
+    "pass": 50,
+    "roc_auc_support_similarity": 0.5451999999999999,
+    "threshold": 0.3367023766040802
+  }
+}
+
