@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -39,6 +40,7 @@ def calibrate_groundedness(
     """
     if split == "test":
         raise DataContractError("Refusing to tune a threshold on the held-out test split.")
+    dataset_digest = hashlib.sha256(Path(dataset_path).read_bytes()).hexdigest()
     all_cases = load_dataset(dataset_path)
     if any(case.get("split") is None for case in all_cases):
         raise DataContractError("Calibration requires every dataset case to have an explicit train/validation/test split.")
@@ -107,8 +109,20 @@ def calibrate_groundedness(
             "accuracy": (true_positive + true_negative) / len(selected),
         })
     best = max(candidates, key=lambda row: (row["balanced_accuracy"], -abs(row["threshold"] - 0.5), row["threshold"]))
+    selected_case_ids = {case_id for case_id, _, _ in selected}
+    selected_cases = [case for case in cases if case["case_id"] in selected_case_ids]
+    case_hash = lambda value: hashlib.sha256(value.encode("utf-8")).hexdigest()
+    calibration_sources = {
+        case_hash(source["source_id"])
+        for case in selected_cases for source in case.get("context", [])
+    }
     return {
-        "calibration_version": 1, "status": "exploratory_threshold_requires_independent_validation",
+        "calibration_version": 2, "status": "exploratory_threshold_requires_independent_validation",
+        "dataset_sha256": dataset_digest,
+        "score_file_sha256": hashlib.sha256(Path(score_path).read_bytes()).hexdigest(),
+        "annotation_file_sha256": hashlib.sha256(Path(annotation_path).read_bytes()).hexdigest(),
+        "calibration_case_hashes": sorted(case_hash(case_id) for case_id in selected_case_ids),
+        "calibration_source_hashes": sorted(calibration_sources),
         "judge_identity": {"version": identity[0], "provider": identity[1], "model": identity[2]},
         "split": split, "cases": len(selected), "pass_labels": positives, "fail_labels": negatives,
         "threshold": best["threshold"], "metrics_on_calibration_data": best,
@@ -129,11 +143,28 @@ def validate_groundedness(
         raise DataContractError("Threshold file is not a valid EvalBench calibration report.")
     if split == calibration.get("split"):
         raise DataContractError("Independent validation must use a different dataset split from threshold selection.")
+    if calibration.get("calibration_version") != 2:
+        raise DataContractError("Calibration report lacks case-level provenance; recalibrate with the current version.")
+    dataset_digest = hashlib.sha256(Path(dataset_path).read_bytes()).hexdigest()
+    if dataset_digest != calibration.get("dataset_sha256"):
+        raise DataContractError("Validation dataset fingerprint differs from the calibrated dataset.")
     threshold = calibration.get("threshold")
     identity = calibration.get("judge_identity")
     if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not 0 <= threshold <= 1 or not isinstance(identity, dict):
         raise DataContractError("Calibration report is missing a valid threshold or judge identity.")
     cases = load_dataset(dataset_path, split=split)
+    case_hash = lambda value: hashlib.sha256(value.encode("utf-8")).hexdigest()
+    validation_case_hashes = {case_hash(case["case_id"]) for case in cases}
+    overlap = validation_case_hashes & set(calibration.get("calibration_case_hashes", []))
+    if overlap:
+        raise DataContractError(f"Validation contains {len(overlap)} case(s) used for threshold calibration.")
+    validation_source_hashes = {
+        case_hash(source["source_id"])
+        for case in cases for source in case.get("context", [])
+    }
+    source_overlap = validation_source_hashes & set(calibration.get("calibration_source_hashes", []))
+    if source_overlap:
+        raise DataContractError(f"Validation contains {len(source_overlap)} source(s) used for threshold calibration.")
     score_rows = _read_jsonl(score_path)
     score_identity = {
         (row.get("judge_version"), row.get("judge_provider"), row.get("judge_model"))
@@ -180,8 +211,14 @@ def validate_groundedness(
     sensitivity = true_positive / positives
     specificity = true_negative / negatives
     return {
-        "validation_version": 1, "status": "independent_holdout_metrics",
+        "validation_version": 2, "status": "independent_holdout_metrics",
+        "dataset_sha256": dataset_digest,
+        "score_file_sha256": hashlib.sha256(Path(score_path).read_bytes()).hexdigest(),
+        "annotation_file_sha256": hashlib.sha256(Path(annotation_path).read_bytes()).hexdigest(),
         "threshold": threshold, "calibration_split": calibration["split"], "validation_split": split,
+        "calibration_case_count": len(calibration.get("calibration_case_hashes", [])),
+        "validation_case_count": len(validation_case_hashes),
+        "case_overlap": 0, "source_overlap": 0,
         "judge_identity": identity, "cases": len(selected), "pass_labels": positives, "fail_labels": negatives,
         "metrics": {
             "accuracy": (true_positive + true_negative) / len(selected),
