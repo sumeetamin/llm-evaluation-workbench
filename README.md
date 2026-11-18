@@ -130,7 +130,7 @@ The fixed run evaluates 2,675 quality-filtered test responses from 450 source gr
 
 This is a TF-IDF context/answer overlap baseline, not the workbench's LLM semantic judge and not a calibration result for that judge. Lexical overlap does not establish entailment; this benchmark is not a production safety or quality claim.
 
-A local embedding-similarity check on a balanced, source-disjoint 100-case RAGTruth sample compared mean-pooled MiniLM cosine similarity with TF-IDF. The embedding baseline reached 58% balanced accuracy and 0.593 ROC-AUC on that sample; TF-IDF reached 52% balanced accuracy and 0.672 ROC-AUC. With only 100 test cases, this comparison is inconclusive; neither baseline calibrates the LLM judge. See the [aggregate report](benchmarks/ragtruth/results/embedding_report.json) and [method notes](benchmarks/ragtruth/README.md).
+A local CPU embedding-similarity check on a balanced, source-disjoint 100-case RAGTruth sample compared mean-pooled MiniLM cosine similarity with TF-IDF. The embedding baseline reached 58% balanced accuracy and 0.593 ROC-AUC; TF-IDF reached 52% balanced accuracy and 0.672 ROC-AUC. On the embedding test slices, it detected 0/9 QA failures and 0/20 Summary failures, while detecting 16/21 Data2txt failures and producing 8 false failures there. The small balanced sample is not evidence of a reliable judge. No provider requests or external API spend occurred; local compute cost and latency were not measured. Neither baseline calibrates the LLM judge. See the [aggregate report](benchmarks/ragtruth/results/embedding_report.json) and [method notes](benchmarks/ragtruth/README.md).
 
 ## Repository map
 
