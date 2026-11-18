@@ -86,7 +86,7 @@ def test_calibration_rejects_review_packet_for_different_answer(tmp_path):
     dataset, scores, labels, _ = _fixture(tmp_path)
     rows = [json.loads(line) for line in labels.read_text(encoding="utf-8").splitlines()]
     rows[0]["answer"] = "edited after scoring"
-    labels.write_text("".join(json.dumps(row) + "\\n" for row in rows), encoding="utf-8")
+    labels.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
     with pytest.raises(DataContractError, match="do not match"):
         calibrate_groundedness(dataset, scores, labels)
 
