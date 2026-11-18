@@ -39,7 +39,7 @@ $env:OPENAI_API_KEY = "your-key"
 python -m evalbench run --dataset data/support_qa.jsonl --model YOUR_MODEL --outputs reports/run.jsonl --report reports/run.html
 ```
 
-Use `--provider anthropic-messages` and set `ANTHROPIC_API_KEY` for Anthropic, or `--provider openai-chat-completions` for OpenAI's Chat Completions schema. `--endpoint` can override the provider URL and `--api-key-env` can select a custom key variable. `run` sends each dataset question and context to the selected endpoint. Use only data you are authorized to transmit. Requests run sequentially; prompts are not copied into normalized output files.
+Use `--provider anthropic-messages` and set `ANTHROPIC_API_KEY` for Anthropic, or `--provider openai-chat-completions` for OpenAI's Chat Completions schema. `--endpoint` can override the provider URL and `--api-key-env` can select a custom key variable. `run` sends each dataset question and context to the selected endpoint. Use only data you are authorized to transmit. Requests run sequentially and checkpoint each completed case to the JSONL output. Set `--resume` after an interruption to continue without repeating completed calls. `--max-retries` bounds per-case retries (1–5, default 2); exhausted cases are written to a `.failures.jsonl` sidecar, and the command exits nonzero. Prompts are not copied into normalized output files.
 
 Import saved provider response traces without resending prompts:
 
@@ -61,7 +61,7 @@ These scores are explicitly **uncalibrated** and must not be treated as a releas
 python -m evalbench calibrate-groundedness --dataset data/with-splits.jsonl --scores reports/groundedness-scores.jsonl --annotations reports/adjudicated-reviews.jsonl --split validation --report reports/groundedness-calibration.json
 ```
 
-The calibration command refuses to tune on `test`, requires explicit dataset splits and rejects reviewer conflicts until adjudicated. It reports performance on the same data used to choose the threshold, so independent validation is still required. RAGTruth's public span annotations support its separate lexical baseline, but do not directly calibrate this LLM judge. Judge calibration still needs compatible, adjudicated labels and scores.
+The calibration command refuses to tune on `test`, requires explicit dataset splits, rejects reviewer conflicts until adjudicated, and verifies the review packet contains the exact answers that were scored. Score rows bind the returned provider model ID and frozen prompt-template version. Calibration records dataset, score, annotation and case/source fingerprints and refuses case or source reuse in the independent split. It reports performance on the same data used to choose the threshold, so independent validation is still required. Old semantic-score files must be regenerated to include the provenance fields. RAGTruth's public span annotations support its separate lexical baseline, but do not directly calibrate this LLM judge. Judge calibration still needs compatible, adjudicated labels and scores.
 
 Once a threshold is frozen, score a separate labeled split with the same judge version and model:
 
