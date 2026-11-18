@@ -19,7 +19,7 @@
     "scikit_learn": "1.9.1",
     "type": "TF-IDF word unigrams/bigrams + answer/context lexical support, numeric discrepancy and negation-ratio features + logistic regression"
   },
-  "runtime_utc": "2026-11-18T09:31:00.189881+00:00",
+  "runtime_utc": "2026-11-18T09:34:34.778275+00:00",
   "sample": {
     "source_overlap": 0,
     "test_cases": 300,
@@ -43,7 +43,7 @@
     },
     "seed": 42
   },
-  "script_sha256": "3de1a9510edc0c09105bd7c24a2d85acfff125991871a4db50d83aca1634c2f6",
+  "script_sha256": "543835c1bf1f22dd4e4140b42e551adb7f2f4da67b03c14a44f962ee8f547f98",
   "selection": {
     "candidates": [
       {
@@ -156,6 +156,38 @@
       "roc_auc": 0.615644820295983,
       "threshold": 0.4522214618209163
     }
+  },
+  "test_uncertainty": {
+    "confidence_level": 0.95,
+    "method": "stratified percentile bootstrap over independent source groups, preserving the balanced pass/fail sample sizes",
+    "metrics": {
+      "average_precision_fail": {
+        "lower": 0.6400038810799844,
+        "upper": 0.7665663628268825
+      },
+      "balanced_accuracy": {
+        "lower": 0.6,
+        "upper": 0.7066666666666667
+      },
+      "brier_score": {
+        "lower": 0.19760823343956366,
+        "upper": 0.24130625244607207
+      },
+      "fail_precision": {
+        "lower": 0.5829139010560825,
+        "upper": 0.6809961613599752
+      },
+      "fail_recall": {
+        "lower": 0.6666666666666666,
+        "upper": 0.8066666666666666
+      },
+      "roc_auc": {
+        "lower": 0.6519988888888889,
+        "upper": 0.7691644444444444
+      }
+    },
+    "resamples": 2000,
+    "seed": 42
   },
   "validation_oof": {
     "accuracy": 0.71,
