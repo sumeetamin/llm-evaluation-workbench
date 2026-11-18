@@ -67,3 +67,17 @@ With `--local-files-only`, the pinned model revision must already be cached. Omi
 On this 100-case test sample, the embedding baseline scored 58% accuracy and balanced accuracy, with 0.593 ROC-AUC and 0.32 recall for the fail label. The same-sample TF-IDF baseline scored 52% accuracy and balanced accuracy, with 0.672 ROC-AUC and 0.10 fail recall at its validation-selected threshold. This small-sample comparison is inconclusive; the embedding score did not show strong discrimination.
 
 This is an embedding-similarity baseline, not the workbench's LLM semantic judge or an entailment model. Similarity can miss negation, contradictions, unsupported details and multi-hop reasoning; each context and answer is truncated to 256 tokens. Labels are response-level mappings of RAGTruth span annotations, not product-specific reviewer adjudication. These results do not calibrate the semantic judge or validate product-specific support QA.
+
+## Larger offline grouped TF-IDF baseline
+
+For a source-disjoint benchmark that needs no model downloads or provider calls, prepare a larger private sample and run the sparse lexical classifier:
+
+```powershell
+python -m pip install -e ".[benchmark]"
+python -m benchmarks.ragtruth.prepare_semantic_calibration --per-class 150 --output-dir benchmarks/ragtruth/calibration_private_600
+python benchmarks/ragtruth/run_grouped_tfidf.py --input-dir benchmarks/ragtruth/calibration_private_600 --output benchmarks/ragtruth/results/grouped_tfidf_600.json
+```
+
+The published aggregate report uses 300 validation and 300 untouched test cases, one response per source group, with zero source overlap. The model selected its regularization and threshold from five-fold grouped out-of-fold predictions on validation only. On this balanced held-out sample it reached 65.3% balanced accuracy, 74.0% fail recall, 63.1% fail precision, and 0.711 ROC-AUC. Test balanced accuracy was 63.4% for Data2txt, 64.3% for QA, and 59.1% for Summary. On the same original 100-case sample, its 57% balanced accuracy did not outperform the 58% embedding baseline; the larger sample result is a separate run, not a like-for-like improvement claim.
+
+This is an experimental lexical classifier, not an LLM judge or entailment model. Labels are coarse response-level mappings of human-annotated RAGTruth spans, the sample is balanced rather than prevalence-representative, and the benchmark does not establish product-specific or production quality. Generated packets contain source text and answers; the new private-sample directory pattern is ignored by Git.
