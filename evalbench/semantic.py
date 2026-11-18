@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from typing import Any
@@ -50,10 +51,16 @@ def grade_groundedness(
         raise ProviderError("Groundedness judge score must be a number from 0 to 1.")
     if not isinstance(count, int) or count < 0 or not isinstance(code, str) or code not in {"supported", "partly_supported", "unsupported", "no_factual_claims"}:
         raise ProviderError("Groundedness judge response did not match the required schema.")
+    digest = lambda value: hashlib.sha256(value.encode("utf-8")).hexdigest()
+    context_json = json.dumps(case.get("context", []), sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    prompt_template = f"{JUDGE_VERSION}\n{system}\nuser-template-v1"
     return {
         "case_id": case["case_id"], "groundedness_score": float(score),
         "unsupported_claim_count": count, "rationale_code": code,
+        "answer_sha256": digest(str(output.get("answer", ""))),
+        "context_sha256": digest(context_json),
+        "prompt_template_sha256": digest(prompt_template),
         "judge_version": JUDGE_VERSION, "judge_provider": provider,
-        "judge_model": model, "latency_ms": response["latency_ms"],
+        "judge_model": response.get("model") or model, "latency_ms": response["latency_ms"],
     }
 
