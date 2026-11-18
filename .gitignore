@@ -10,3 +10,5 @@ Thumbs.db
 benchmarks/ragtruth/data/
 benchmarks/ragtruth/results/test_scores.jsonl
 benchmarks/ragtruth/calibration_private/
+# Generated private RAGTruth review/calibration packets must stay local
+benchmarks/ragtruth/calibration_private_*/
