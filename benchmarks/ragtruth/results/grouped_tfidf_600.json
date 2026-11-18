@@ -1,0 +1,181 @@
+{
+  "benchmark": "Source-disjoint offline TF-IDF classifier with lexical support features",
+  "label_mapping": "fail when any non-implicit-true hallucination span is annotated; otherwise pass",
+  "limitations": [
+    "Offline baseline only; no external model/provider requests were made.",
+    "RAGTruth response-level labels are a simplified mapping of human span annotations, not custom product reviewer adjudication.",
+    "Balanced sampling is not prevalence-representative; accuracy and predictive values do not estimate natural traffic performance.",
+    "Source-disjoint holdout supports corpus-level evaluation only and does not establish production quality or a release gate.",
+    "The lexical model can miss paraphrases, contradiction, multi-hop reasoning, and domain-specific grounding; test labels were not used for selection."
+  ],
+  "model": {
+    "C_candidates": [
+      0.1,
+      1.0,
+      10.0
+    ],
+    "max_features": 40000,
+    "python": "3.14.3",
+    "scikit_learn": "1.9.1",
+    "type": "TF-IDF word unigrams/bigrams + answer/context lexical support, numeric discrepancy and negation-ratio features + logistic regression"
+  },
+  "runtime_utc": "2026-11-18T09:31:00.189881+00:00",
+  "sample": {
+    "source_overlap": 0,
+    "test_cases": 300,
+    "test_fail": 150,
+    "test_sources": 300,
+    "validation_cases": 300,
+    "validation_fail": 150,
+    "validation_sources": 300
+  },
+  "sample_fingerprints": {
+    "annotations.jsonl": "3749024ba88256a2130cbdf9ec8adabd0e93ff874ac1043e28b3a17e85aefcb7",
+    "dataset.jsonl": "fa46dee43340c08b60deb20b3ed55ef38888e292d6c0259d2c8fc2bf691c597d",
+    "outputs.jsonl": "9259cb9787174e27044c9679bc67e122dd0f99eaa980705832799c3b0b2e9c29"
+  },
+  "sampling": {
+    "cases_per_class_per_split": 150,
+    "official_source_groups": {
+      "overlap": 0,
+      "test": 450,
+      "validation": 503
+    },
+    "seed": 42
+  },
+  "script_sha256": "3de1a9510edc0c09105bd7c24a2d85acfff125991871a4db50d83aca1634c2f6",
+  "selection": {
+    "candidates": [
+      {
+        "C": 0.1,
+        "oof_average_precision_fail": 0.6606903279570071,
+        "oof_balanced_accuracy_at_selected_threshold": 0.65,
+        "selected_threshold": 0.4934619867688845
+      },
+      {
+        "C": 1.0,
+        "oof_average_precision_fail": 0.7024227114294554,
+        "oof_balanced_accuracy_at_selected_threshold": 0.7033333333333334,
+        "selected_threshold": 0.4694656235038316
+      },
+      {
+        "C": 10.0,
+        "oof_average_precision_fail": 0.7333443268275934,
+        "oof_balanced_accuracy_at_selected_threshold": 0.71,
+        "selected_threshold": 0.4522214618209163
+      }
+    ],
+    "method": "five-fold StratifiedGroupKFold OOF average precision on validation; threshold selected on validation OOF balanced accuracy",
+    "selected_C": 10.0,
+    "selected_threshold": 0.4522214618209163
+  },
+  "source": "ParticleMedia/RAGTruth official response and source-information files",
+  "source_revision": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
+  "source_sha256": {
+    "response.jsonl": "e4c2e4ac24fff676d8984cc61c35d791612fadc58015335d97dd632375e18073",
+    "source_info.jsonl": "0dffc26ea9f3c1c3d7c7e8336b56ef1646e3cec876edffcca3c9c624d12d578b"
+  },
+  "test": {
+    "accuracy": 0.6533333333333333,
+    "average_precision_fail": 0.7023167190645114,
+    "balanced_accuracy": 0.6533333333333333,
+    "brier_score": 0.21919575300153046,
+    "cases": 300,
+    "confusion_matrix": {
+      "detected_fail": 111,
+      "false_fail": 65,
+      "missed_fail": 39,
+      "true_pass": 85
+    },
+    "fail": 150,
+    "fail_f1": 0.6809815950920245,
+    "fail_precision": 0.6306818181818182,
+    "fail_recall": 0.74,
+    "pass": 150,
+    "roc_auc": 0.7114666666666666,
+    "threshold": 0.4522214618209163
+  },
+  "test_by_task": {
+    "Data2txt": {
+      "accuracy": 0.6929824561403509,
+      "average_precision_fail": 0.82477533789647,
+      "balanced_accuracy": 0.6342995169082125,
+      "brier_score": 0.19598465370843693,
+      "cases": 114,
+      "confusion_matrix": {
+        "detected_fail": 63,
+        "false_fail": 29,
+        "missed_fail": 6,
+        "true_pass": 16
+      },
+      "fail": 69,
+      "fail_f1": 0.782608695652174,
+      "fail_precision": 0.6847826086956522,
+      "fail_recall": 0.9130434782608695,
+      "pass": 45,
+      "roc_auc": 0.7549114331723027,
+      "threshold": 0.4522214618209163
+    },
+    "QA": {
+      "accuracy": 0.6704545454545454,
+      "average_precision_fail": 0.4919527289619684,
+      "balanced_accuracy": 0.6433002481389578,
+      "brier_score": 0.20771822553325972,
+      "cases": 88,
+      "confusion_matrix": {
+        "detected_fail": 15,
+        "false_fail": 18,
+        "missed_fail": 11,
+        "true_pass": 44
+      },
+      "fail": 26,
+      "fail_f1": 0.5084745762711864,
+      "fail_precision": 0.45454545454545453,
+      "fail_recall": 0.5769230769230769,
+      "pass": 62,
+      "roc_auc": 0.6960297766749379,
+      "threshold": 0.4522214618209163
+    },
+    "Summary": {
+      "accuracy": 0.5918367346938775,
+      "average_precision_fail": 0.6703202305812151,
+      "balanced_accuracy": 0.5906976744186047,
+      "brier_score": 0.2565027707221478,
+      "cases": 98,
+      "confusion_matrix": {
+        "detected_fail": 33,
+        "false_fail": 18,
+        "missed_fail": 22,
+        "true_pass": 25
+      },
+      "fail": 55,
+      "fail_f1": 0.6226415094339622,
+      "fail_precision": 0.6470588235294118,
+      "fail_recall": 0.6,
+      "pass": 43,
+      "roc_auc": 0.615644820295983,
+      "threshold": 0.4522214618209163
+    }
+  },
+  "validation_oof": {
+    "accuracy": 0.71,
+    "average_precision_fail": 0.7333443268275934,
+    "balanced_accuracy": 0.71,
+    "brier_score": 0.2024105838412179,
+    "cases": 300,
+    "confusion_matrix": {
+      "detected_fail": 117,
+      "false_fail": 54,
+      "missed_fail": 33,
+      "true_pass": 96
+    },
+    "fail": 150,
+    "fail_f1": 0.7289719626168224,
+    "fail_precision": 0.6842105263157895,
+    "fail_recall": 0.78,
+    "pass": 150,
+    "roc_auc": 0.7523555555555556,
+    "threshold": 0.4522214618209163
+  }
+}
+
