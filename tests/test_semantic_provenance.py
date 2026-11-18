@@ -9,7 +9,7 @@ def test_semantic_score_uses_returned_model_and_hashes_exact_answer(monkeypatch)
         semantic,
         "call_provider",
         lambda *args, **kwargs: {
-            "answer": '{"score": 0.9, "unsupported_claim_count": 0, "rationale_code": "supported}',
+            "answer": '{"score": 0.9, "unsupported_claim_count": 0, "rationale_code": "supported"}',
             "model": "provider-resolved-model-2026-11",
             "latency_ms": 12.5,
         },
