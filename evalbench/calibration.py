@@ -54,15 +54,20 @@ def calibrate_groundedness(
         raise DataContractError("Calibration scores must come from exactly one judge version, provider, and model.")
     identity = next(iter(identities))
     scores: dict[str, float] = {}
+    score_rows_by_case: dict[str, dict[str, Any]] = {}
     for row in score_rows:
         case_id, score = row.get("case_id"), row.get("groundedness_score")
         if not isinstance(case_id, str) or not isinstance(score, (int, float)) or not 0 <= score <= 1:
             raise DataContractError("Score rows need a case_id and groundedness_score from 0 to 1.")
         if case_id in scores:
             raise DataContractError(f"Duplicate semantic score for {case_id!r}.")
+        if not isinstance(row.get("answer_sha256"), str) or not isinstance(row.get("prompt_template_sha256"), str):
+            raise DataContractError("Scores lack answer and prompt-template provenance; regenerate semantic scores.")
         scores[case_id] = float(score)
+        score_rows_by_case[case_id] = row
+    annotation_rows = _read_jsonl(annotation_path)
     labels_by_case: dict[str, set[str]] = {}
-    for row in _read_jsonl(annotation_path):
+    for row in annotation_rows:
         case_id = row.get("case_id")
         labels = row.get("labels") if isinstance(row.get("labels"), dict) else row
         label = labels.get("groundedness")
@@ -70,18 +75,31 @@ def calibrate_groundedness(
             labels_by_case.setdefault(case_id, set()).add(label)
     selected = []
     ambiguous = []
+    answer_mismatches = []
     for case in cases:
         case_id = case["case_id"]
         available = labels_by_case.get(case_id, set()) - {"unsure"}
         if len(available) > 1:
             ambiguous.append(case_id)
         elif len(available) == 1 and case_id in scores:
-            selected.append((case_id, scores[case_id], next(iter(available))))
+            reviewed_answers = {
+                hashlib.sha256(row["answer"].encode("utf-8")).hexdigest()
+                for row in annotation_rows if row.get("case_id") == case_id and isinstance(row.get("answer"), str)
+            }
+            if score_rows_by_case[case_id]["answer_sha256"] not in reviewed_answers:
+                answer_mismatches.append(case_id)
+            else:
+                selected.append((case_id, scores[case_id], next(iter(available))))
     if ambiguous:
         raise DataContractError(
             "Conflicting reviewer labels need human adjudication before calibration (case IDs: "
             + ", ".join(sorted(ambiguous)[:10]) + ")."
         )
+    if answer_mismatches:
+        raise DataContractError("Reviewed answers do not match the answers that were semantically scored (case IDs: " + ", ".join(sorted(answer_mismatches)[:10]) + ").")
+    prompt_versions = {row["prompt_template_sha256"] for row in score_rows_by_case.values()}
+    if len(prompt_versions) != 1:
+        raise DataContractError("Calibration scores must use one frozen judge prompt template.")
     positives = sum(label == "pass" for _, _, label in selected)
     negatives = sum(label == "fail" for _, _, label in selected)
     if len(selected) < 30 or min(positives, negatives) < 5:
@@ -124,6 +142,11 @@ def calibrate_groundedness(
         "calibration_case_hashes": sorted(case_hash(case_id) for case_id in selected_case_ids),
         "calibration_source_hashes": sorted(calibration_sources),
         "judge_identity": {"version": identity[0], "provider": identity[1], "model": identity[2]},
+        "prompt_template_sha256": next(iter(prompt_versions)),
+        "calibration_answer_hashes": sorted(
+            (case_hash(case_id), score_rows_by_case[case_id]["answer_sha256"])
+            for case_id in selected_case_ids
+        ),
         "split": split, "cases": len(selected), "pass_labels": positives, "fail_labels": negatives,
         "threshold": best["threshold"], "metrics_on_calibration_data": best,
         "warning": "Threshold was selected and scored on the same labeled cases; do not claim independent accuracy. Validate on a separate human-labeled set before using as a release gate.",
@@ -170,19 +193,27 @@ def validate_groundedness(
         (row.get("judge_version"), row.get("judge_provider"), row.get("judge_model"))
         for row in score_rows
     }
+    prompt_versions = {row.get("prompt_template_sha256") for row in score_rows}
+    if prompt_versions != {calibration.get("prompt_template_sha256")}:
+        raise DataContractError("Independent validation must use the same frozen judge prompt template.")
     expected = (identity.get("version"), identity.get("provider"), identity.get("model"))
     if score_identity != {expected}:
         raise DataContractError("Independent validation scores must use the same frozen judge version, provider, and model.")
     scores: dict[str, float] = {}
+    score_rows_by_case: dict[str, dict[str, Any]] = {}
     for row in score_rows:
         case_id, score = row.get("case_id"), row.get("groundedness_score")
         if not isinstance(case_id, str) or isinstance(score, bool) or not isinstance(score, (int, float)) or not 0 <= score <= 1:
             raise DataContractError("Score rows need a case_id and groundedness_score from 0 to 1.")
         if case_id in scores:
             raise DataContractError(f"Duplicate semantic score for {case_id!r}.")
+        if not isinstance(row.get("answer_sha256"), str):
+            raise DataContractError("Validation scores lack answer provenance; regenerate semantic scores.")
         scores[case_id] = float(score)
+        score_rows_by_case[case_id] = row
+    annotation_rows = _read_jsonl(annotation_path)
     labels_by_case: dict[str, set[str]] = {}
-    for row in _read_jsonl(annotation_path):
+    for row in annotation_rows:
         case_id = row.get("case_id")
         labels = row.get("labels") if isinstance(row.get("labels"), dict) else row
         label = labels.get("groundedness")
@@ -190,15 +221,25 @@ def validate_groundedness(
             labels_by_case.setdefault(case_id, set()).add(label)
     selected = []
     conflicts = []
+    answer_mismatches = []
     for case in cases:
         case_id = case["case_id"]
         available = labels_by_case.get(case_id, set()) - {"unsure"}
         if len(available) > 1:
             conflicts.append(case_id)
         elif len(available) == 1 and case_id in scores:
-            selected.append((case_id, scores[case_id], next(iter(available))))
+            reviewed_answers = {
+                hashlib.sha256(row["answer"].encode("utf-8")).hexdigest()
+                for row in annotation_rows if row.get("case_id") == case_id and isinstance(row.get("answer"), str)
+            }
+            if score_rows_by_case[case_id]["answer_sha256"] not in reviewed_answers:
+                answer_mismatches.append(case_id)
+            else:
+                selected.append((case_id, scores[case_id], next(iter(available))))
     if conflicts:
         raise DataContractError("Conflicting labels need human adjudication before validation (case IDs: " + ", ".join(sorted(conflicts)[:10]) + ").")
+    if answer_mismatches:
+        raise DataContractError("Reviewed answers do not match the answers that were semantically scored (case IDs: " + ", ".join(sorted(answer_mismatches)[:10]) + ").")
     positives = sum(label == "pass" for _, _, label in selected)
     negatives = sum(label == "fail" for _, _, label in selected)
     if len(selected) < 30 or min(positives, negatives) < 5:
