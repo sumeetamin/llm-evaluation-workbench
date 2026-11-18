@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -22,14 +23,18 @@ def _fixture(tmp_path: Path):
                 "context": [{"source_id": f"source-{row}", "text": "context"}],
                 "split": split,
             })
+            answer = f"answer for {case_id}"
             scores.append({
                 "case_id": case_id,
                 "groundedness_score": 0.9 if label == "pass" else 0.1,
+                "answer_sha256": hashlib.sha256(answer.encode("utf-8")).hexdigest(),
+                "context_sha256": hashlib.sha256(json.dumps([{"source_id": f"source-{row}", "text": "context"}], sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest(),
+                "prompt_template_sha256": "frozen-prompt-v1",
                 "judge_version": "v1",
                 "judge_provider": "offline",
                 "judge_model": "frozen-fixture",
             })
-            labels.append({"case_id": case_id, "groundedness": label})
+            labels.append({"case_id": case_id, "answer": answer, "groundedness": label})
     dataset = tmp_path / "dataset.jsonl"
     score_file = tmp_path / "scores.jsonl"
     annotation_file = tmp_path / "labels.jsonl"
@@ -76,3 +81,21 @@ def test_calibration_manifest_contains_no_raw_case_or_source_ids(tmp_path):
     assert "source-0" not in rendered
     assert len(report["calibration_case_hashes"]) == 30
     assert len(report["calibration_source_hashes"]) == 30
+
+def test_calibration_rejects_review_packet_for_different_answer(tmp_path):
+    dataset, scores, labels, _ = _fixture(tmp_path)
+    rows = [json.loads(line) for line in labels.read_text(encoding="utf-8").splitlines()]
+    rows[0]["answer"] = "edited after scoring"
+    labels.write_text("".join(json.dumps(row) + "\\n" for row in rows), encoding="utf-8")
+    with pytest.raises(DataContractError, match="do not match"):
+        calibrate_groundedness(dataset, scores, labels)
+
+
+def test_checkpoint_writer_resumes_semantic_rows(tmp_path):
+    from evalbench.cli import _prepare_checkpoint, _write_jsonl_row
+
+    checkpoint = tmp_path / "semantic.jsonl"
+    _write_jsonl_row(checkpoint, {"case_id": "case-1", "groundedness_score": 0.8})
+    restored = _prepare_checkpoint(checkpoint, True, {"case-1", "case-2"})
+    assert restored["case-1"]["groundedness_score"] == 0.8
+    assert set(restored) == {"case-1"}
