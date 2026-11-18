@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,48 @@ def _score(dataset_path: str, output_path: str, split: str | None = None) -> dic
     return grade_dataset(load_dataset(dataset_path, split=split), load_outputs(output_path))
 
 
+def _write_jsonl_row(path: Path, row: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(row, ensure_ascii=False) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def _prepare_checkpoint(path: Path, resume: bool, allowed_ids: set[str]) -> dict[str, dict[str, Any]]:
+    if not resume:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("", encoding="utf-8")
+        return {}
+    if not path.exists():
+        return {}
+    existing: dict[str, dict[str, Any]] = {}
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise DataContractError(f"checkpoint line {number} is invalid JSON; preserve the file and inspect its last line.") from exc
+        case_id = row.get("case_id") if isinstance(row, dict) else None
+        if not isinstance(case_id, str) or not case_id:
+            raise DataContractError(f"checkpoint line {number} has no case_id.")
+        if case_id in existing:
+            raise DataContractError(f"checkpoint contains duplicate case_id {case_id!r}.")
+        existing[case_id] = row
+    unknown = set(existing) - allowed_ids
+    if unknown:
+        raise DataContractError(f"checkpoint contains {len(unknown)} case(s) outside this dataset split.")
+    return existing
+
+
+def _failure(path: Path, case_id: str, attempts: int, exc: Exception) -> None:
+    _write_jsonl_row(path, {
+        "case_id": case_id, "attempts": attempts,
+        "error_type": type(exc).__name__, "error": str(exc),
+    })
+
+
 def cmd_demo(args: argparse.Namespace) -> int:
     dataset = str(ROOT / "data" / "support_qa.jsonl")
     baseline_path = str(ROOT / "fixtures" / "baseline.jsonl")
@@ -74,13 +117,30 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
 
 def cmd_run(args: argparse.Namespace) -> int:
     cases = load_dataset(args.dataset, split=args.split)
-    outputs = []
-    for index, case in enumerate(cases, 1):
-        print(f"[{index}/{len(cases)}] {case['case_id']}", flush=True)
-        outputs.append(call_provider(case, provider=args.provider, endpoint=args.endpoint, model=args.model, api_key_env=args.api_key_env, timeout=args.timeout))
     output_path = Path(args.outputs)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in outputs), encoding="utf-8")
+    allowed_ids = {case["case_id"] for case in cases}
+    saved = _prepare_checkpoint(output_path, args.resume, allowed_ids)
+    failures_path = output_path.with_suffix(output_path.suffix + ".failures.jsonl")
+    if not args.resume:
+        failures_path.write_text("", encoding="utf-8")
+    for index, case in enumerate(cases, 1):
+        if case["case_id"] in saved:
+            continue
+        print(f"[{index}/{len(cases)}] {case['case_id']}", flush=True)
+        for attempt in range(1, args.max_retries + 1):
+            try:
+                row = call_provider(case, provider=args.provider, endpoint=args.endpoint, model=args.model, api_key_env=args.api_key_env, timeout=args.timeout)
+                _write_jsonl_row(output_path, row)
+                saved[row["case_id"]] = row
+                break
+            except ProviderError as exc:
+                if attempt == args.max_retries:
+                    _failure(failures_path, case["case_id"], attempt, exc)
+                    print(f"Failed {case['case_id']} after {attempt} attempt(s): {exc}", file=sys.stderr)
+    if set(saved) != allowed_ids:
+        print(f"Run incomplete: {len(allowed_ids-set(saved))} case(s) failed; rerun with --resume after fixing provider access.", file=sys.stderr)
+        return 2
+    outputs = [saved[case["case_id"]] for case in cases]
     evaluation = grade_dataset(cases, {row["case_id"]: row for row in outputs})
     metadata = build_run_metadata(
         args.dataset, cases, split=args.split, command="run", outputs=[output_path],
@@ -158,19 +218,36 @@ def cmd_trace_import(args: argparse.Namespace) -> int:
 def cmd_semantic_grade(args: argparse.Namespace) -> int:
     cases = load_dataset(args.dataset, split=args.split)
     outputs = load_outputs(args.outputs)
-    rows = []
+    destination = Path(args.results)
+    allowed_ids = {case["case_id"] for case in cases}
+    saved = _prepare_checkpoint(destination, args.resume, allowed_ids)
+    failures_path = destination.with_suffix(destination.suffix + ".failures.jsonl")
+    if not args.resume:
+        failures_path.write_text("", encoding="utf-8")
     for index, case in enumerate(cases, 1):
+        if case["case_id"] in saved:
+            continue
         output = outputs.get(case["case_id"])
         if output is None:
             raise DataContractError(f"missing model output for semantic grading: {case['case_id']}")
         print(f"[{index}/{len(cases)}] {case['case_id']}", flush=True)
-        rows.append(grade_groundedness(
-            case, output, provider=args.provider, model=args.model,
-            endpoint=args.endpoint, api_key_env=args.api_key_env, timeout=args.timeout,
-        ))
-    destination = Path(args.results)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8")
+        for attempt in range(1, args.max_retries + 1):
+            try:
+                row = grade_groundedness(
+                    case, output, provider=args.provider, model=args.model,
+                    endpoint=args.endpoint, api_key_env=args.api_key_env, timeout=args.timeout,
+                )
+                _write_jsonl_row(destination, row)
+                saved[row["case_id"]] = row
+                break
+            except ProviderError as exc:
+                if attempt == args.max_retries:
+                    _failure(failures_path, case["case_id"], attempt, exc)
+                    print(f"Failed {case['case_id']} after {attempt} attempt(s): {exc}", file=sys.stderr)
+    if set(saved) != allowed_ids:
+        print(f"Semantic grading incomplete: {len(allowed_ids-set(saved))} case(s) failed; rerun with --resume.", file=sys.stderr)
+        return 2
+    rows = [saved[case["case_id"]] for case in cases]
     print(f"Uncalibrated semantic scores: {destination}")
     print("This is a model-judge signal, not a calibrated pass/fail result. Do not use it as a release gate yet.")
     return 0
@@ -225,6 +302,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--model", required=True)
     run.add_argument("--api-key-env", help="key environment variable; defaults by provider")
     run.add_argument("--timeout", type=int, default=60)
+    run.add_argument("--max-retries", type=int, choices=range(1, 6), default=2)
+    run.add_argument("--resume", action="store_true", help="continue from completed JSONL cases; partial results are kept on failure")
     run.add_argument("--split", choices=("train", "validation", "test"), help="send only cases assigned to this split")
     run.set_defaults(func=cmd_run)
 
@@ -275,6 +354,8 @@ def build_parser() -> argparse.ArgumentParser:
     semantic.add_argument("--endpoint")
     semantic.add_argument("--api-key-env")
     semantic.add_argument("--timeout", type=int, default=60)
+    semantic.add_argument("--max-retries", type=int, choices=range(1, 6), default=2)
+    semantic.add_argument("--resume", action="store_true", help="continue from completed JSONL cases; partial results are kept on failure")
     semantic.add_argument("--split", choices=("train", "validation", "test"))
     semantic.set_defaults(func=cmd_semantic_grade)
 
