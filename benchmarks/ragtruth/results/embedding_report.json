@@ -203,9 +203,9 @@
         "true_pass": 23
       },
       "fail": 9,
-      "fail_f1": 0.0,
-      "fail_precision": 0.0,
-      "fail_recall": 0.0,
+      "fail_f1": 0,
+      "fail_precision": 0,
+      "fail_recall": 0,
       "pass": 23,
       "roc_auc_support_similarity": 0.5748792270531401,
       "threshold": 0.3367023766040802
@@ -222,9 +222,9 @@
         "true_pass": 18
       },
       "fail": 20,
-      "fail_f1": 0.0,
-      "fail_precision": 0.0,
-      "fail_recall": 0.0,
+      "fail_f1": 0,
+      "fail_precision": 0,
+      "fail_recall": 0,
       "pass": 18,
       "roc_auc_support_similarity": 0.4472222222222222,
       "threshold": 0.3367023766040802
@@ -254,6 +254,41 @@
     "pass": 50,
     "roc_auc_support_similarity": 0.5451999999999999,
     "threshold": 0.3367023766040802
+  },
+  "operational_measurements": {
+    "execution": "Local CPU embedding baseline; no provider requests were made.",
+    "external_provider_requests": 0,
+    "external_provider_cost_usd": 0,
+    "local_compute_cost": "not measured",
+    "latency_ms": "not measured; this benchmark is not a serving-latency test"
+  },
+  "test_failure_slices": {
+    "QA": {
+      "cases": 32,
+      "fail_cases": 9,
+      "detected_failures": 0,
+      "missed_failures": 9,
+      "true_passes": 23,
+      "false_failures": 0,
+      "fail_recall": 0
+    },
+    "Summary": {
+      "cases": 38,
+      "fail_cases": 20,
+      "detected_failures": 0,
+      "missed_failures": 20,
+      "true_passes": 18,
+      "false_failures": 0,
+      "fail_recall": 0
+    },
+    "Data2txt": {
+      "cases": 30,
+      "fail_cases": 21,
+      "detected_failures": 16,
+      "missed_failures": 5,
+      "true_passes": 1,
+      "false_failures": 8,
+      "fail_recall": 0.7619047619047619
+    }
   }
 }
-
