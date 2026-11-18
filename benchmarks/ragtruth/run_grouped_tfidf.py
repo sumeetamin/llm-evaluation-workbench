@@ -149,6 +149,37 @@ def summarize(scores: np.ndarray, labels: np.ndarray, threshold: float) -> dict[
     }
 
 
+def bootstrap_intervals(
+    scores: np.ndarray, labels: np.ndarray, threshold: float,
+    *, resamples: int = 2000, seed: int = 42,
+) -> dict[str, Any]:
+    """Stratified case bootstrap; each sample contains one row per source group."""
+    rng = np.random.default_rng(seed)
+    pass_indices = np.flatnonzero(labels == 0)
+    fail_indices = np.flatnonzero(labels == 1)
+    if not len(pass_indices) or not len(fail_indices):
+        raise ValueError("Both labels are required for stratified bootstrap intervals")
+    values = {name: [] for name in ("balanced_accuracy", "fail_precision", "fail_recall", "roc_auc", "average_precision_fail", "brier_score")}
+    for _ in range(resamples):
+        indices = np.concatenate([
+            rng.choice(pass_indices, size=len(pass_indices), replace=True),
+            rng.choice(fail_indices, size=len(fail_indices), replace=True),
+        ])
+        metrics = summarize(scores[indices], labels[indices], threshold)
+        for name in values:
+            values[name].append(metrics[name])
+    return {
+        "method": "stratified percentile bootstrap over independent source groups, preserving the balanced pass/fail sample sizes",
+        "resamples": resamples,
+        "seed": seed,
+        "confidence_level": 0.95,
+        "metrics": {
+            name: {"lower": float(np.quantile(samples, 0.025)), "upper": float(np.quantile(samples, 0.975))}
+            for name, samples in values.items()
+        },
+    }
+
+
 def run(input_dir: Path, output_path: Path) -> dict[str, Any]:
     dataset_path, outputs_path, annotations_path = (input_dir / name for name in ("dataset.jsonl", "outputs.jsonl", "annotations.jsonl"))
     dataset = read_jsonl(dataset_path)
@@ -216,6 +247,7 @@ def run(input_dir: Path, output_path: Path) -> dict[str, Any]:
         "selection": {"method": "five-fold StratifiedGroupKFold OOF average precision on validation; threshold selected on validation OOF balanced accuracy", "selected_C": selected["C"], "selected_threshold": threshold, "candidates": candidates},
         "validation_oof": summarize(oof_by_c[float(selected["C"])], y_train, threshold),
         "test": summarize(test_scores, y_test, threshold),
+        "test_uncertainty": bootstrap_intervals(test_scores, y_test, threshold),
         "test_by_task": by_task,
         "model": {"type": "TF-IDF word unigrams/bigrams + answer/context lexical support, numeric discrepancy and negation-ratio features + logistic regression", "max_features": 40000, "C_candidates": list(CANDIDATE_C), "scikit_learn": sklearn.__version__, "python": platform.python_version()},
         "script_sha256": digest(Path(__file__).resolve()),
